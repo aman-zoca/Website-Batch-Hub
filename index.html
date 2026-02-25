@@ -465,7 +465,7 @@
 
             // Legacy cycle removed - replaced by runPipeline
 
-            async function performAction(index, action, delay) {
+            async function performAction(index, action) {
                 const e = state.entities[index];
                 const isGen = action === 'generate';
 
@@ -517,8 +517,6 @@
                 state.processing -= 1;
                 state.entities = [...state.entities]; // Trigger Proxy save
                 renderTableRow(index);
-
-                if (delay > 0 && state.isRunning) await new Promise(r => setTimeout(r, delay));
             }
 
             // Efficient partial render
@@ -532,7 +530,7 @@
             async function manualAction(idx, action) {
                 if (!authToken.value.trim()) { alert("Please enter token first!"); return; }
                 addLog(`🛠️ Manual ${action} for ${state.entities[idx].url}`);
-                await performAction(idx, action, 0);
+                await performAction(idx, action);
             }
 
             function copyToClipboard(idx) {
@@ -600,16 +598,25 @@
 
                 addLog(`🚀 Starting ${action} pipeline: ${from} to ${to}`);
 
+                let isFirstItem = true;
                 for (let i = from; i < to; i += size) {
                     if (isGen ? !isGenActive : !isPubActive) break;
                     const end = Math.min(i + size, to);
+
                     addLog(`⚙️ Processing ${action} batch: ${i} to ${end - 1}`);
 
                     for (let j = i; j < end; j++) {
                         if (isGen ? !isGenActive : !isPubActive) break;
                         // Only process if not success or manually forced
                         if (state.entities[j] && state.entities[j][isGen ? 'genStatus' : 'pubStatus'] !== 'success') {
-                            await performAction(j, action, delay / size); // Distribute delay per item in batch
+                            // Wait for delay BEFORE processing each item (except the first one)
+                            if (!isFirstItem && delay > 0) {
+                                addLog(`⏳ Waiting ${delay / 1000}s before next item...`);
+                                await new Promise(r => setTimeout(r, delay));
+                                if (isGen ? !isGenActive : !isPubActive) break;
+                            }
+                            isFirstItem = false;
+                            await performAction(j, action);
                         }
                     }
 
