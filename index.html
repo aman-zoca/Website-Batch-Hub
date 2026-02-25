@@ -596,9 +596,8 @@
                 const size = parseInt(document.getElementById(isGen ? 'gen-batch-size' : 'pub-batch-size').value);
                 const delay = parseInt(document.getElementById(isGen ? 'gen-delay' : 'pub-delay').value) * 1000;
 
-                addLog(`🚀 Starting ${action} pipeline: ${from} to ${to}`);
+                addLog(`🚀 Starting ${action} pipeline: ${from} to ${to} (delay: ${delay / 1000}s)`);
 
-                let isFirstItem = true;
                 for (let i = from; i < to; i += size) {
                     if (isGen ? !isGenActive : !isPubActive) break;
                     const end = Math.min(i + size, to);
@@ -609,14 +608,16 @@
                         if (isGen ? !isGenActive : !isPubActive) break;
                         // Only process if not success or manually forced
                         if (state.entities[j] && state.entities[j][isGen ? 'genStatus' : 'pubStatus'] !== 'success') {
-                            // Wait for delay BEFORE processing each item (except the first one)
-                            if (!isFirstItem && delay > 0) {
-                                addLog(`⏳ Waiting ${delay / 1000}s before next item...`);
-                                await new Promise(r => setTimeout(r, delay));
-                                if (isGen ? !isGenActive : !isPubActive) break;
-                            }
-                            isFirstItem = false;
                             await performAction(j, action);
+
+                            // Wait for delay AFTER processing each item
+                            if (delay > 0) {
+                                addLog(`⏳ Waiting ${delay / 1000}s before next item...`);
+                                for (let sec = delay / 1000; sec > 0; sec--) {
+                                    if (isGen ? !isGenActive : !isPubActive) break;
+                                    await new Promise(r => setTimeout(r, 1000));
+                                }
+                            }
                         }
                     }
 
