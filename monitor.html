@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Website Batch Hub v3</title>
+    <link rel="icon"
+        href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚀</text></svg>">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .status-success {
+            background-color: #d1fae5;
+            color: #065f46;
+        }
+
+        .status-failed {
+            background-color: #fee2e2;
+            color: #991b1b;
+        }
+
+        .status-pending {
+            background-color: #f3f4f6;
+            color: #374151;
+        }
+
+        .status-processing {
+            background-color: #dbeafe;
+            color: #1e40af;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: .5;
+            }
+        }
+
+        #log-container {
+            max-height: 250px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 0.7rem;
+            line-height: 1rem;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 10px;
+        }
+    </style>
+</head>
+
+<body class="bg-slate-50 text-slate-900 min-h-screen">
+
+    <div class="max-w-[1600px] mx-auto p-4 md:p-6 lg:p-8">
+        <header class="mb-8 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+            <div class="flex items-center gap-4">
+                <div class="bg-blue-600 p-3 rounded-2xl shadow-blue-200 shadow-lg">
+                    <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10">
+                        </path>
+                    </svg>
+                </div>
+                <div>
+                    <h1 class="text-3xl font-extrabold tracking-tight text-slate-900">Website Batch Hub v3</h1>
+                    <p class="text-slate-500 font-medium italic">Independent Parallel Pipelines & Advanced Controls</p>
+                </div>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-3">
+                <div class="relative min-w-[300px]">
+                    <span class="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">🔑</span>
+                    <input type="password" id="auth-token" placeholder="Paste Bearer Token here..."
+                        class="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-[10px] focus:ring-2 focus:ring-blue-500 outline-none transition-all">
+                </div>
+                <input type="file" id="import-json" accept=".json,.csv" class="hidden">
+                <button onclick="document.getElementById('import-json').click()"
+                    class="bg-blue-50 text-blue-700 hover:bg-blue-100 px-4 py-2 rounded-xl text-sm font-semibold transition-all flex items-center gap-2">
+                    📥 Import Data
+                </button>
+                <button id="clear-progress"
+                    class="bg-white border border-rose-200 text-rose-600 hover:bg-rose-50 px-4 py-2 rounded-xl text-sm font-semibold transition-all">
+                    �️ Reset All
+                </button>
+            </div>
+        </header>
+        <div class="flex">
+            <div class="flex flex-col xl:flex-row gap-8">
+                <!-- Sidebar: Config & Logs -->
+                <div class="xl:w-[380px] flex flex-col gap-6 shrink-0">
+                    <!-- Generate Batch Controller (Top) -->
+                    <div
+                        class="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 border-l-4 border-l-blue-500">
+                        <div class="flex items-center justify-between mb-4">
+                            <h2 class="text-sm font-bold text-slate-900 uppercase tracking-widest">Generate Batch</h2>
+                            <span id="gen-indicator" class="w-2 h-2 rounded-full bg-slate-300"></span>
+                        </div>
+                        <div class="space-y-4">
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-[10px] font-bold text-slate-500 mb-1 uppercase">From
+                                        Idx</label>
+                                    <input type="number" id="gen-from" value="0"
+                                        class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm">
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] font-bold text-slate-500 mb-1 uppercase">To
+                                        Idx</label>
+                                    <input type="number" id="gen-to" value="50"
+                                        class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm">
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-[10px] font-bold text-slate-500 mb-1 uppercase">Batch
+                                        Size</label>
+                                    <input type="number" id="gen-batch-size" value="10"
+                                        class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm">
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] font-bold text-slate-500 mb-1 uppercase">Delay
+                                        (s)</label>
+                                    <input type="number" id="gen-delay" value="60"
+                                        class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm">
+                                </div>
+                            </div>
+                            <button id="gen-batch-btn"
+                                class="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-2xl font-bold shadow-lg shadow-blue-100 transition-all flex items-center justify-center gap-2">
+                                <span>🚀</span> Run Gen Batch
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Publish Batch Controller (Middle) -->
+                    <div
+                        class="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 border-l-4 border-l-emerald-500">
+                        <div class="flex items-center justify-between mb-4">
+                            <h2 class="text-sm font-bold text-slate-900 uppercase tracking-widest">Publish Batch</h2>
+                            <span id="pub-indicator" class="w-2 h-2 rounded-full bg-slate-300"></span>
+                        </div>
+                        <div class="space-y-4">
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-[10px] font-bold text-slate-500 mb-1 uppercase">From
+                                        Idx</label>
+                                    <input type="number" id="pub-from" value="0"
+                                        class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm">
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] font-bold text-slate-500 mb-1 uppercase">To
+                                        Idx</label>
+                                    <input type="number" id="pub-to" value="50"
+                                        class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm">
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-[10px] font-bold text-slate-500 mb-1 uppercase">Batch
+                                        Size</label>
+                                    <input type="number" id="pub-batch-size" value="10"
+                                        class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm">
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] font-bold text-slate-500 mb-1 uppercase">Delay
+                                        (s)</label>
+                                    <input type="number" id="pub-delay" value="15"
+                                        class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm">
+                                </div>
+                            </div>
+                            <button id="pub-batch-btn"
+                                class="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-3 rounded-2xl font-bold shadow-lg shadow-emerald-100 transition-all flex items-center justify-center gap-2">
+                                <span>📤</span> Run Pub Batch
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Logs (Bottom) -->
+                    <div
+                        class="bg-slate-900 rounded-3xl p-6 shadow-2xl flex-grow overflow-hidden flex flex-col max-h-[400px]">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-slate-400 text-xs font-bold uppercase tracking-wider">Live Activity</h3>
+                            <button id="clear-log" class="text-slate-500 hover:text-white transition-colors">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16">
+                                    </path>
+                                </svg>
+                            </button>
+                        </div>
+                        <div id="log-container" class="text-slate-300 custom-scrollbar overflow-y-auto pr-2"></div>
+                    </div>
+                </div>
+
+                <!-- Main: Table -->
+                <div class="flex-grow space-y-6 overflow-hidden">
+                    <div
+                        class="bg-white rounded-[2rem] shadow-sm border border-slate-200 overflow-hidden flex flex-col h-[85vh]">
+                        <div
+                            class="p-6 border-b border-slate-100 flex flex-col xl:flex-row xl:items-center justify-between gap-6">
+                            <div class="flex flex-wrap items-center gap-8">
+                                <div>
+                                    <h3 class="font-bold text-slate-800 text-xl leading-none">Entity Database</h3>
+                                    <p id="progress-info"
+                                        class="text-[10px] text-slate-400 font-black uppercase tracking-widest mt-1">
+                                        Ready
+                                        to
+                                        process</p>
+                                </div>
+
+                                <div class="flex items-center gap-6 border-l border-slate-100 pl-8">
+                                    <div class="flex flex-col">
+                                        <span
+                                            class="text-[9px] font-black text-slate-400 uppercase tracking-tighter">Total</span>
+                                        <span id="stat-total"
+                                            class="text-base font-black text-slate-900 leading-none">0</span>
+                                    </div>
+                                    <div class="flex flex-col">
+                                        <span
+                                            class="text-[9px] font-black text-blue-500 uppercase tracking-tighter">Success</span>
+                                        <span id="stat-success"
+                                            class="text-base font-black text-blue-700 leading-none">0</span>
+                                    </div>
+                                    <div class="flex flex-col">
+                                        <span
+                                            class="text-[9px] font-black text-rose-500 uppercase tracking-tighter">Failed</span>
+                                        <span id="stat-failed"
+                                            class="text-base font-black text-rose-700 leading-none">0</span>
+                                    </div>
+                                    <div class="flex flex-col">
+                                        <span
+                                            class="text-[9px] font-black text-indigo-500 uppercase tracking-tighter">Queue</span>
+                                        <span id="stat-processing"
+                                            class="text-base font-black text-indigo-700 leading-none">0</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="flex items-center gap-3">
+                                <div class="relative">
+                                    <input type="text" id="search-input" placeholder="Search entries..."
+                                        class="pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-64">
+                                    <svg class="w-4 h-4 text-slate-400 absolute left-4 top-3" fill="none"
+                                        stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                                    </svg>
+                                </div>
+                                <button id="download-csv"
+                                    class="group bg-blue-50 text-blue-700 hover:bg-blue-600 hover:text-white px-5 py-2.5 rounded-2xl text-sm font-bold transition-all flex items-center gap-2">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                                    </svg>
+                                    Export CSV
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="overflow-auto custom-scrollbar flex-grow">
+                            <table class="w-full text-left">
+                                <thead class="bg-slate-50/50 sticky top-0 backdrop-blur-md z-10">
+                                    <tr>
+                                        <th
+                                            class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 text-center w-16">
+                                            #</th>
+                                        <th
+                                            class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">
+                                            URL & Identity</th>
+                                        <th
+                                            class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 text-center">
+                                            Status</th>
+                                        <th
+                                            class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">
+                                            Actions</th>
+                                        <th
+                                            class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">
+                                            Gen Response</th>
+                                        <th
+                                            class="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">
+                                            Pub Response</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="table-body" class="divide-y divide-slate-50">
+                                    <!-- Rows injected by JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Data Injection (Mini-sample for structural reference script will populate fully) -->
+        <script id="entities-data" type="application/json">
+
+
+</script>
+
+        <script>
+            // PROXY FOR STATE MANAGEMENT
+            const state = new Proxy({
+                entities: [],
+                total: 0,
+                success: 0,
+                failed: 0,
+                processing: 0,
+                isRunning: false,
+                currentIndex: 0
+            }, {
+                set(target, prop, value) {
+                    target[prop] = value;
+                    if (['success', 'failed', 'processing', 'total'].includes(prop)) updateStats();
+                    if (prop === 'entities') saveToStorage();
+                    return true;
+                }
+            });
+
+            const STORAGE_KEY = 'website-batch-v3-data';
+            const tableBody = document.getElementById('table-body');
+            const logContainer = document.getElementById('log-container');
+            const authToken = document.getElementById('auth-token');
+            const searchInput = document.getElementById('search-input');
+            const progressInfo = document.getElementById('progress-info');
+
+            // INITIALIZATION
+            document.addEventListener('DOMContentLoaded', () => {
+                loadProgress();
+                renderTable();
+                updateStats();
+                addLog("System ready. LocalStorage persistence active.");
+            });
+
+            function saveToStorage() {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify({
+                    entities: state.entities,
+                    currentIndex: state.currentIndex
+                }));
+                localStorage.setItem('website-batch-token', authToken.value);
+            }
+
+            function loadProgress() {
+                const saved = localStorage.getItem(STORAGE_KEY);
+                const savedToken = localStorage.getItem('website-batch-token');
+                if (savedToken) authToken.value = savedToken;
+
+                if (saved) {
+                    const data = JSON.parse(saved);
+                    state.entities = data.entities || [];
+                    state.currentIndex = data.currentIndex || 0;
+                    if (state.entities.length) {
+                        addLog(`✨ Resumed progress: ${state.entities.filter(e => e.pubStatus === 'success').length} complete.`);
+                    }
+                } else {
+                    // Initial load from JSON script tag
+                    const scriptTag = document.getElementById('entities-data');
+                    const content = scriptTag ? scriptTag.textContent.trim() : "";
+                    if (content) {
+                        try {
+                            const raw = JSON.parse(content);
+                            state.entities = raw.map((e, i) => ({
+                                ...e,
+                                id: i,
+                                genStatus: 'pending',
+                                pubStatus: 'pending',
+                                genResponse: '',
+                                pubResponse: ''
+                            }));
+                        } catch (e) {
+                            addLog("⚠️ Injected JSON is invalid or empty. Use 'Import' button.");
+                        }
+                    }
+                }
+                state.total = state.entities.length;
+            }
+
+            function updateStats() {
+                document.getElementById('stat-total').textContent = state.total;
+                document.getElementById('stat-success').textContent = state.entities.filter(e => e.pubStatus === 'success').length;
+                document.getElementById('stat-failed').textContent = state.entities.filter(e => e.genStatus === 'failed' || e.pubStatus === 'failed').length;
+                document.getElementById('stat-processing').textContent = state.processing;
+
+                const doneCount = state.entities.filter(e => e.pubStatus === 'success').length;
+                if (progressInfo) progressInfo.textContent = `Progress: ${doneCount} / ${state.total}`;
+            }
+
+            function renderTable(filter = '') {
+                const currentFilter = filter.toLowerCase();
+                const rows = state.entities.map((e, idx) => {
+                    if (currentFilter && !e.url.includes(currentFilter) && !e.entity_id.includes(currentFilter)) return '';
+
+                    return `
+                    <tr class="group hover:bg-slate-50/80 transition-colors border-b border-slate-50">
+                        <td class="px-6 py-4 text-[10px] font-bold text-slate-400 text-center">${idx}</td>
+                        <td class="px-6 py-4">
+                            <div class="flex flex-col">
+                                <a href="https://${e.url}" target="_blank" class="text-sm font-bold text-slate-700 hover:text-blue-600 transition-colors truncate max-w-[240px] underline decoration-slate-200">${e.url}</a>
+                                <div class="flex items-center gap-2">
+                                    <span class="text-[9px] text-slate-400 font-mono tracking-tighter uppercase mt-0.5">${e.entity_id.substring(0, 8)}...</span>
+                                    <button onclick="copyToClipboard(${idx})" class="p-1 hover:bg-slate-200 rounded" title="Copy Row Data">
+                                        <svg class="w-3 h-3 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                                    </button>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="px-6 py-4 text-center">
+                            <div class="flex items-center justify-center gap-1.5 font-black text-[9px] uppercase">
+                                <span class="status-${e.genStatus} px-2 py-0.5 rounded-md min-w-[50px]">${e.genStatus}</span>
+                                <span class="text-slate-300">→</span>
+                                <span class="status-${e.pubStatus} px-2 py-0.5 rounded-md min-w-[50px]">${e.pubStatus}</span>
+                            </div>
+                        </td>
+                        <td class="px-6 py-4">
+                            <div class="flex gap-1.5">
+                                <button onclick="manualAction(${idx}, 'generate')" class="bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white p-1.5 rounded-lg transition-all" title="Manual Generate">
+                                    <span class="text-xs">🚀</span>
+                                </button>
+                                <button onclick="manualAction(${idx}, 'publish')" class="bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white p-1.5 rounded-lg transition-all" title="Manual Publish">
+                                    <span class="text-xs">📤</span>
+                                </button>
+                            </div>
+                        </td>
+                        <td class="px-6 py-4">
+                            <div class="text-[10px] text-slate-500 font-mono line-clamp-1 max-w-[150px]" title="${e.genResponse || 'No response yet'}">
+                                ${e.genResponse || '-'}
+                            </div>
+                        </td>
+                        <td class="px-6 py-4">
+                            <div class="text-[10px] text-slate-500 font-mono line-clamp-1 max-w-[150px]" title="${e.pubResponse || 'No response yet'}">
+                                ${e.pubResponse || '-'}
+                            </div>
+                        </td>
+                    </tr>
+                `;
+                }).join('');
+                tableBody.innerHTML = rows;
+            }
+
+            function addLog(msg) {
+                const time = new Date().toLocaleTimeString();
+                const div = document.createElement('div');
+                div.className = "flex gap-2 mb-1";
+                div.innerHTML = `<span class="text-slate-600 font-bold">${time}</span> <span class="text-slate-100">${msg}</span>`;
+                logContainer.appendChild(div);
+                logContainer.scrollTop = logContainer.scrollHeight;
+            }
+
+            // Search logic
+            searchInput.addEventListener('input', (e) => renderTable(e.target.value));
+
+            // Legacy cycle removed - replaced by runPipeline
+
+            async function performAction(index, action, delay) {
+                const e = state.entities[index];
+                const isGen = action === 'generate';
+
+                const url = isGen
+                    ? 'https://internal.zoca.ai/internal/api/v1/website/creation/generate/website'
+                    : 'https://internal.zoca.ai/internal/api/v1/website/creation/build/website';
+
+                const body = isGen
+                    ? { entityId: e.entity_id, refreshAll: false, homeSectionsToUpdate: [] }
+                    : { websiteId: e.website_id };
+
+                if (isGen) e.genStatus = 'processing'; else e.pubStatus = 'processing';
+                state.processing += 1;
+                renderTableRow(index); // Refresh only UI for this row
+
+                try {
+                    const res = await fetch(url, {
+                        method: 'POST',
+                        headers: {
+                            'accept': '*/*',
+                            'authorization': authToken.value.trim(),
+                            'content-type': 'application/json',
+                            'origin': 'https://raft.zoca.ai',
+                            'x-ops-request': 'true'
+                        },
+                        body: JSON.stringify(body)
+                    });
+
+                    const data = await res.text();
+                    const status = res.status;
+                    const statusTxt = res.ok ? 'success' : 'failed';
+                    const respSnippet = `[${status}] ${data.substring(0, 80)}`;
+
+                    if (isGen) {
+                        e.genStatus = statusTxt;
+                        e.genResponse = respSnippet;
+                    } else {
+                        e.pubStatus = statusTxt;
+                        e.pubResponse = respSnippet;
+                    }
+
+                    addLog(`${res.ok ? '✅' : '❌'} ${action} ${e.url} (${status})`);
+                } catch (err) {
+                    if (isGen) { e.genStatus = 'failed'; e.genResponse = err.message; }
+                    else { e.pubStatus = 'failed'; e.pubResponse = err.message; }
+                    addLog(`🔥 AJAX Error: ${err.message}`);
+                }
+
+                state.processing -= 1;
+                state.entities = [...state.entities]; // Trigger Proxy save
+                renderTableRow(index);
+
+                if (delay > 0 && state.isRunning) await new Promise(r => setTimeout(r, delay));
+            }
+
+            // Efficient partial render
+            function renderTableRow(idx) {
+                const filter = searchInput.value.toLowerCase();
+                const e = state.entities[idx];
+                if (filter && !e.url.includes(filter)) return;
+                renderTable(filter);
+            }
+
+            async function manualAction(idx, action) {
+                if (!authToken.value.trim()) { alert("Please enter token first!"); return; }
+                addLog(`🛠️ Manual ${action} for ${state.entities[idx].url}`);
+                await performAction(idx, action, 0);
+            }
+
+            function copyToClipboard(idx) {
+                const e = state.entities[idx];
+                const text = `Index: ${idx}\nURL: ${e.url}\nEntity ID: ${e.entity_id}\nWebsite ID: ${e.website_id}\nGen Status: ${e.genStatus}\nPub Status: ${e.pubStatus}\nGen Resp: ${e.genResponse}\nPub Resp: ${e.pubResponse}`;
+                navigator.clipboard.writeText(text).then(() => {
+                    addLog(`📋 Copied details for ${e.url}`);
+                });
+            }
+
+            // Parallel Batch Logic
+            let isGenActive = false;
+            let isPubActive = false;
+
+            document.getElementById('gen-batch-btn').addEventListener('click', async () => {
+                if (isGenActive) { isGenActive = false; updateGenBtnStatus(); return; }
+                if (!authToken.value.trim()) { alert("Token required!"); return; }
+                isGenActive = true;
+                updateGenBtnStatus();
+                await runPipeline('generate');
+            });
+
+            document.getElementById('pub-batch-btn').addEventListener('click', async () => {
+                if (isPubActive) { isPubActive = false; updatePubBtnStatus(); return; }
+                if (!authToken.value.trim()) { alert("Token required!"); return; }
+                isPubActive = true;
+                updatePubBtnStatus();
+                await runPipeline('publish');
+            });
+
+            function updateGenBtnStatus() {
+                const btn = document.getElementById('gen-batch-btn');
+                const indicator = document.getElementById('gen-indicator');
+                if (isGenActive) {
+                    btn.classList.replace('bg-blue-600', 'bg-rose-500');
+                    btn.innerHTML = '⏸️ Pause Gen';
+                    indicator.className = 'w-2 h-2 rounded-full bg-blue-500 animate-pulse';
+                } else {
+                    btn.classList.replace('bg-rose-500', 'bg-blue-600');
+                    btn.innerHTML = '🚀 Run Gen Batch';
+                    indicator.className = 'w-2 h-2 rounded-full bg-slate-300';
+                }
+            }
+
+            function updatePubBtnStatus() {
+                const btn = document.getElementById('pub-batch-btn');
+                const indicator = document.getElementById('pub-indicator');
+                if (isPubActive) {
+                    btn.classList.replace('bg-emerald-600', 'bg-rose-500');
+                    btn.innerHTML = '⏸️ Pause Pub';
+                    indicator.className = 'w-2 h-2 rounded-full bg-emerald-500 animate-pulse';
+                } else {
+                    btn.classList.replace('bg-rose-500', 'bg-emerald-600');
+                    btn.innerHTML = '📤 Run Pub Batch';
+                    indicator.className = 'w-2 h-2 rounded-full bg-slate-300';
+                }
+            }
+
+            async function runPipeline(action) {
+                const isGen = action === 'generate';
+                const from = parseInt(document.getElementById(isGen ? 'gen-from' : 'pub-from').value);
+                const to = parseInt(document.getElementById(isGen ? 'gen-to' : 'pub-to').value);
+                const size = parseInt(document.getElementById(isGen ? 'gen-batch-size' : 'pub-batch-size').value);
+                const delay = parseInt(document.getElementById(isGen ? 'gen-delay' : 'pub-delay').value) * 1000;
+
+                addLog(`🚀 Starting ${action} pipeline: ${from} to ${to}`);
+
+                for (let i = from; i < to; i += size) {
+                    if (isGen ? !isGenActive : !isPubActive) break;
+                    const end = Math.min(i + size, to);
+                    addLog(`⚙️ Processing ${action} batch: ${i} to ${end - 1}`);
+
+                    for (let j = i; j < end; j++) {
+                        if (isGen ? !isGenActive : !isPubActive) break;
+                        // Only process if not success or manually forced
+                        if (state.entities[j] && state.entities[j][isGen ? 'genStatus' : 'pubStatus'] !== 'success') {
+                            await performAction(j, action, delay / size); // Distribute delay per item in batch
+                        }
+                    }
+
+                    if (isGen ? !isGenActive : !isPubActive) break;
+                    addLog(`✅ ${action} batch done: ${i}-${end - 1}`);
+                    if (isGen && end % 50 === 0) triggerAutoDownload();
+                }
+
+                if (isGen) { isGenActive = false; updateGenBtnStatus(); } else { isPubActive = false; updatePubBtnStatus(); }
+                addLog(`🏁 ${action} pipeline finished/paused.`);
+            }
+
+            // Import logic
+            document.getElementById('import-json').addEventListener('change', function (e) {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = function (evt) {
+                    try {
+                        let raw = [];
+                        if (file.name.endsWith('.json')) {
+                            raw = JSON.parse(evt.target.result);
+                        } else if (file.name.endsWith('.csv')) {
+                            // Very simple CSV parser
+                            const lines = evt.target.result.split('\n');
+                            const headers = lines[0].split(',');
+                            raw = lines.slice(1).filter(l => l.trim()).map(line => {
+                                const values = line.split(',');
+                                const obj = {};
+                                headers.forEach((h, i) => obj[h.trim()] = values[i]?.trim());
+                                return obj;
+                            });
+                        }
+
+                        state.entities = raw.map((e, i) => ({
+                            ...e,
+                            genStatus: e.gen_status || e.genStatus || 'pending',
+                            pubStatus: e.pub_status || e.pubStatus || 'pending',
+                            genResponse: e.gen_response || e.genResponse || '',
+                            pubResponse: e.pub_response || e.pubResponse || ''
+                        }));
+                        state.total = state.entities.length;
+                        document.getElementById('gen-to').value = state.total;
+                        document.getElementById('pub-to').value = state.total;
+                        renderTable();
+                        saveToStorage();
+                        addLog(`✨ Imported ${state.total} records.`);
+                    } catch (err) {
+                        alert("Import failed: " + err.message);
+                    }
+                };
+                reader.readAsText(file);
+            });
+
+            function triggerAutoDownload() {
+                addLog("📥 Triggering auto-export...");
+                downloadCSV(`auto_batch_${Date.now()}.csv`);
+            }
+
+            function downloadCSV(filename) {
+                let csv = "entity_id,website_id,url,gen_status,pub_status,gen_response,pub_response\n";
+                state.entities.forEach(e => {
+                    const genR = e.genResponse || "-";
+                    const pubR = e.pubResponse || "-";
+                    csv += `${e.entity_id},${e.website_id},${e.url},${e.genStatus},${e.pubStatus},"${genR.replace(/"/g, '""')}","${pubR.replace(/"/g, '""')}"\n`;
+                });
+                const blob = new Blob([csv], { type: 'text/csv' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename || 'results.csv';
+                a.click();
+            }
+
+            document.getElementById('download-csv').onclick = () => downloadCSV('full_results_export.csv');
+            document.getElementById('clear-log').onclick = () => logContainer.innerHTML = '';
+            document.getElementById('clear-progress').onclick = () => {
+                if (confirm("Reset all progress? This will clear local data and records.")) {
+                    localStorage.removeItem(STORAGE_KEY);
+                    state.entities = [];
+                    state.total = 0;
+                    renderTable();
+                    location.reload();
+                }
+            };
+        </script>
+</body>
+
+</html>
