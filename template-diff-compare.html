@@ -1,0 +1,1522 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Template Diff Compare — globalJS & globalCSS</title>
+    <script src="https://cdn.jsdelivr.net/npm/diff@5.1.0/dist/diff.min.js"></script>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        background: #0d1117;
+        color: #c9d1d9;
+        min-height: 100vh;
+      }
+
+      .top-bar {
+        background: #161b22;
+        border-bottom: 1px solid #30363d;
+        padding: 16px 24px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .top-bar h1 {
+        font-size: 18px;
+        font-weight: 600;
+        color: #58a6ff;
+      }
+      .top-bar .badge {
+        background: #1f6feb;
+        color: #fff;
+        font-size: 11px;
+        padding: 2px 8px;
+        border-radius: 12px;
+      }
+
+      .config-panel {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0;
+        border-bottom: 1px solid #30363d;
+      }
+      .config-side {
+        padding: 20px 24px;
+      }
+      .config-side:first-child {
+        border-right: 1px solid #30363d;
+      }
+      .config-side h2 {
+        font-size: 14px;
+        font-weight: 600;
+        margin-bottom: 12px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .config-side h2 .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+      }
+      .left-side .dot {
+        background: #f85149;
+      }
+      .right-side .dot {
+        background: #3fb950;
+      }
+
+      .field {
+        margin-bottom: 10px;
+      }
+      .field label {
+        display: block;
+        font-size: 12px;
+        color: #8b949e;
+        margin-bottom: 4px;
+        font-weight: 500;
+      }
+      .field input,
+      .field select {
+        width: 100%;
+        padding: 8px 12px;
+        background: #0d1117;
+        border: 1px solid #30363d;
+        border-radius: 6px;
+        color: #c9d1d9;
+        font-size: 13px;
+        font-family: "SF Mono", "Fira Code", monospace;
+      }
+      .field input:focus,
+      .field select:focus {
+        outline: none;
+        border-color: #58a6ff;
+        box-shadow: 0 0 0 2px rgba(88, 166, 255, 0.15);
+      }
+      .field input::placeholder {
+        color: #484f58;
+      }
+
+      .row-2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+      }
+
+      .actions {
+        padding: 16px 24px;
+        background: #161b22;
+        border-bottom: 1px solid #30363d;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .btn {
+        padding: 8px 20px;
+        border-radius: 6px;
+        border: 1px solid transparent;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.15s;
+      }
+      .btn-primary {
+        background: #238636;
+        color: #fff;
+        border-color: rgba(240, 246, 252, 0.1);
+      }
+      .btn-primary:hover {
+        background: #2ea043;
+      }
+      .btn-primary:disabled {
+        background: #21262d;
+        color: #484f58;
+        cursor: not-allowed;
+      }
+      .btn-secondary {
+        background: #21262d;
+        color: #c9d1d9;
+        border-color: #30363d;
+      }
+      .btn-secondary:hover {
+        background: #30363d;
+      }
+      .status-msg {
+        font-size: 13px;
+        color: #8b949e;
+      }
+      .status-msg.error {
+        color: #f85149;
+      }
+
+      .page-tabs {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0;
+        background: #161b22;
+        border-bottom: 1px solid #30363d;
+        padding: 0 24px;
+        overflow-x: auto;
+      }
+      .page-tab {
+        padding: 10px 16px;
+        font-size: 13px;
+        cursor: pointer;
+        border-bottom: 2px solid transparent;
+        color: #8b949e;
+        transition: all 0.15s;
+        white-space: nowrap;
+      }
+      .page-tab:hover {
+        color: #c9d1d9;
+      }
+      .page-tab.active {
+        color: #58a6ff;
+        border-bottom-color: #f78166;
+        font-weight: 600;
+      }
+      .page-tab .page-id {
+        font-size: 11px;
+        color: #484f58;
+        margin-left: 4px;
+      }
+      .page-tab.only-left {
+        border-left: 3px solid #f85149;
+      }
+      .page-tab.only-right {
+        border-left: 3px solid #3fb950;
+      }
+
+      .diff-container {
+        padding: 24px;
+      }
+      .diff-section {
+        margin-bottom: 32px;
+      }
+      .diff-header {
+        font-size: 14px;
+        font-weight: 600;
+        padding: 10px 16px;
+        background: #161b22;
+        border: 1px solid #30363d;
+        border-radius: 6px 6px 0 0;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .diff-header .file-name {
+        color: #c9d1d9;
+        font-family: "SF Mono", "Fira Code", monospace;
+      }
+      .diff-stats {
+        font-size: 12px;
+        display: flex;
+        gap: 8px;
+      }
+      .diff-stats .added {
+        color: #3fb950;
+      }
+      .diff-stats .removed {
+        color: #f85149;
+      }
+      .diff-stats .same {
+        color: #8b949e;
+      }
+
+      .diff-body {
+        border: 1px solid #30363d;
+        border-top: none;
+        border-radius: 0 0 6px 6px;
+        overflow: auto;
+        max-height: 600px;
+        font-family: "SF Mono", "Fira Code", monospace;
+        font-size: 12px;
+        line-height: 1.6;
+      }
+      .diff-line {
+        display: flex;
+        white-space: pre-wrap;
+        word-break: break-all;
+      }
+      .diff-line .line-num {
+        min-width: 50px;
+        padding: 0 8px;
+        text-align: right;
+        color: #484f58;
+        user-select: none;
+        flex-shrink: 0;
+        border-right: 1px solid #30363d;
+      }
+      .diff-line .line-num.left-num {
+      }
+      .diff-line .line-num.right-num {
+      }
+      .diff-line .line-content {
+        padding: 0 12px;
+        flex: 1;
+      }
+      .diff-line .line-prefix {
+        display: inline-block;
+        width: 16px;
+        text-align: center;
+        user-select: none;
+      }
+
+      .diff-line.added {
+        background: rgba(63, 185, 80, 0.1);
+      }
+      .diff-line.added .line-content {
+        color: #3fb950;
+      }
+      .diff-line.added .line-num {
+        background: rgba(63, 185, 80, 0.15);
+        color: #3fb950;
+      }
+
+      .diff-line.removed {
+        background: rgba(248, 81, 73, 0.1);
+      }
+      .diff-line.removed .line-content {
+        color: #f85149;
+      }
+      .diff-line.removed .line-num {
+        background: rgba(248, 81, 73, 0.15);
+        color: #f85149;
+      }
+
+      .diff-line.context {
+        background: transparent;
+      }
+      .diff-line.context .line-content {
+        color: #8b949e;
+      }
+
+      .diff-line.separator {
+        background: #161b22;
+        color: #58a6ff;
+        font-style: italic;
+      }
+      .diff-line.separator .line-content {
+        padding: 4px 12px;
+      }
+
+      .identical-notice {
+        padding: 24px;
+        text-align: center;
+        color: #3fb950;
+        font-size: 14px;
+        border: 1px solid #30363d;
+        border-top: none;
+        border-radius: 0 0 6px 6px;
+        background: rgba(63, 185, 80, 0.05);
+      }
+
+      .empty-state {
+        padding: 60px 24px;
+        text-align: center;
+        color: #484f58;
+      }
+      .empty-state h3 {
+        font-size: 20px;
+        margin-bottom: 8px;
+        color: #8b949e;
+      }
+      .empty-state p {
+        font-size: 14px;
+      }
+
+      .toggle-row {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+      }
+      .toggle-label {
+        font-size: 12px;
+        color: #8b949e;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        cursor: pointer;
+      }
+      .toggle-label input {
+        accent-color: #58a6ff;
+      }
+
+      .spinner {
+        display: inline-block;
+        width: 14px;
+        height: 14px;
+        border: 2px solid #30363d;
+        border-top-color: #58a6ff;
+        border-radius: 50%;
+        animation: spin 0.6s linear infinite;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      .summary-bar {
+        padding: 12px 24px;
+        background: #161b22;
+        border-bottom: 1px solid #30363d;
+        display: flex;
+        gap: 20px;
+        font-size: 13px;
+        color: #8b949e;
+      }
+      .summary-bar .count {
+        font-weight: 600;
+      }
+      .summary-bar .count.red {
+        color: #f85149;
+      }
+      .summary-bar .count.green {
+        color: #3fb950;
+      }
+      /* Diff navigation toolbar */
+      .diff-nav {
+        position: sticky;
+        top: 0;
+        z-index: 100;
+        background: #1c2128;
+        border: 1px solid #30363d;
+        border-radius: 8px;
+        padding: 8px 16px;
+        margin-bottom: 16px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+      }
+      .diff-nav .nav-btn {
+        padding: 6px 12px;
+        border-radius: 6px;
+        border: 1px solid #30363d;
+        background: #21262d;
+        color: #c9d1d9;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        transition: all 0.15s;
+      }
+      .diff-nav .nav-btn:hover { background: #30363d; }
+      .diff-nav .nav-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+      .diff-nav .nav-btn.ignore-btn { background: #da3633; border-color: #f85149; color: #fff; }
+      .diff-nav .nav-btn.ignore-btn:hover { background: #b62324; }
+      .diff-nav .nav-counter {
+        font-size: 13px;
+        color: #8b949e;
+        min-width: 80px;
+        text-align: center;
+        font-family: 'SF Mono', 'Fira Code', monospace;
+      }
+      .diff-nav .nav-counter strong { color: #58a6ff; }
+      .diff-nav .sep { width: 1px; height: 20px; background: #30363d; }
+      .diff-nav .ignored-count { font-size: 12px; color: #f0883e; margin-left: auto; }
+
+      .diff-hunk { position: relative; }
+      .diff-hunk.current-hunk { outline: 2px solid #58a6ff; outline-offset: -2px; border-radius: 4px; }
+      .diff-hunk.ignored-hunk { display: none; }
+      .diff-hunk-ignored-placeholder {
+        padding: 8px 16px;
+        background: #161b22;
+        border: 1px dashed #30363d;
+        border-radius: 4px;
+        margin: 4px 0;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-size: 12px;
+        color: #484f58;
+        font-style: italic;
+      }
+      .diff-hunk-ignored-placeholder .restore-btn {
+        padding: 2px 8px;
+        border-radius: 4px;
+        border: 1px solid #30363d;
+        background: #21262d;
+        color: #8b949e;
+        font-size: 11px;
+        cursor: pointer;
+      }
+      .diff-hunk-ignored-placeholder .restore-btn:hover { background: #30363d; color: #c9d1d9; }
+
+      .summary-bar .count.blue {
+        color: #58a6ff;
+      }
+
+      /* View mode toggle */
+      .view-toggle {
+        display: flex;
+        border: 1px solid #30363d;
+        border-radius: 6px;
+        overflow: hidden;
+      }
+      .view-toggle .vt-btn {
+        padding: 5px 12px;
+        font-size: 12px;
+        font-weight: 600;
+        border: none;
+        background: #21262d;
+        color: #8b949e;
+        cursor: pointer;
+        transition: all 0.15s;
+      }
+      .view-toggle .vt-btn:not(:last-child) { border-right: 1px solid #30363d; }
+      .view-toggle .vt-btn.active { background: #1f6feb; color: #fff; }
+      .view-toggle .vt-btn:hover:not(.active) { background: #30363d; color: #c9d1d9; }
+
+      /* Side-by-side diff */
+      .diff-side-by-side {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        border: 1px solid #30363d;
+        border-top: none;
+        border-radius: 0 0 6px 6px;
+        overflow: hidden;
+        max-height: 700px;
+        font-family: "SF Mono", "Fira Code", monospace;
+        font-size: 12px;
+        line-height: 1.6;
+      }
+      .diff-side-by-side .sbs-pane {
+        overflow-y: auto;
+        overflow-x: auto;
+      }
+      .diff-side-by-side .sbs-pane:first-child {
+        border-right: 1px solid #30363d;
+      }
+      .diff-side-by-side .sbs-pane-header {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        padding: 6px 12px;
+        font-size: 11px;
+        font-weight: 600;
+        background: #161b22;
+        border-bottom: 1px solid #30363d;
+        color: #8b949e;
+      }
+      .sbs-pane:first-child .sbs-pane-header { color: #f85149; }
+      .sbs-pane:last-child .sbs-pane-header { color: #3fb950; }
+
+      .sbs-line {
+        display: flex;
+        min-height: 19.2px;
+        white-space: pre-wrap;
+        word-break: break-all;
+      }
+      .sbs-line .sbs-num {
+        min-width: 44px;
+        padding: 0 6px;
+        text-align: right;
+        color: #484f58;
+        user-select: none;
+        flex-shrink: 0;
+        border-right: 1px solid #21262d;
+      }
+      .sbs-line .sbs-code {
+        padding: 0 10px;
+        flex: 1;
+      }
+      .sbs-line.sbs-added { background: rgba(63,185,80,0.10); }
+      .sbs-line.sbs-added .sbs-code { color: #3fb950; }
+      .sbs-line.sbs-added .sbs-num { background: rgba(63,185,80,0.15); color: #3fb950; }
+      .sbs-line.sbs-removed { background: rgba(248,81,73,0.10); }
+      .sbs-line.sbs-removed .sbs-code { color: #f85149; }
+      .sbs-line.sbs-removed .sbs-num { background: rgba(248,81,73,0.15); color: #f85149; }
+      .sbs-line.sbs-empty { background: #161b22; }
+      .sbs-line.sbs-empty .sbs-code { color: transparent; }
+      .sbs-line.sbs-context .sbs-code { color: #8b949e; }
+      .sbs-line.sbs-sep {
+        background: #161b22;
+        font-style: italic;
+        color: #58a6ff;
+      }
+      .sbs-line.sbs-sep .sbs-code { padding: 3px 10px; }
+    </style>
+  </head>
+  <body>
+    <div class="top-bar">
+      <h1>Template Diff Compare</h1>
+      <span class="badge">globalJS & globalCSS</span>
+    </div>
+
+    <div class="config-panel">
+      <div class="config-side left-side">
+        <h2><span class="dot"></span> Left — Sandbox (mononest.dev)</h2>
+        <div class="field">
+          <label>Base URL</label>
+          <select id="left-base">
+            <option value="https://internal.mononest.dev">
+              internal.mononest.dev (Sandbox)
+            </option>
+            <option value="https://internal.zoca.ai">
+              internal.zoca.ai (Prod)
+            </option>
+            <option value="custom">Custom URL...</option>
+          </select>
+        </div>
+        <div class="field" id="left-custom-url-wrap" style="display: none">
+          <label>Custom Base URL</label>
+          <input
+            type="text"
+            id="left-custom-url"
+            placeholder="https://your-domain.com"
+          />
+        </div>
+        <div class="field">
+          <label>Template ID</label>
+          <input
+            type="text"
+            id="left-template"
+            placeholder="8c68d7b6-64a6-4890-95f4-70b8b0370bde"
+          />
+        </div>
+        <div class="row-2">
+          <div class="field">
+            <label>Auth Type</label>
+            <select id="left-auth-type">
+              <option value="apikey">x-api-key</option>
+              <option value="bearer">Bearer Token</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Token / Key</label>
+            <input
+              type="password"
+              id="left-auth"
+              placeholder="Paste token or API key"
+            />
+          </div>
+        </div>
+      </div>
+
+      <div class="config-side right-side">
+        <h2><span class="dot"></span> Right — Prod (zoca.ai)</h2>
+        <div class="field">
+          <label>Base URL</label>
+          <select id="right-base">
+            <option value="https://internal.zoca.ai">
+              internal.zoca.ai (Prod)
+            </option>
+            <option value="https://internal.mononest.dev">
+              internal.mononest.dev (Sandbox)
+            </option>
+            <option value="custom">Custom URL...</option>
+          </select>
+        </div>
+        <div class="field" id="right-custom-url-wrap" style="display: none">
+          <label>Custom Base URL</label>
+          <input
+            type="text"
+            id="right-custom-url"
+            placeholder="https://your-domain.com"
+          />
+        </div>
+        <div class="field">
+          <label>Template ID</label>
+          <input
+            type="text"
+            id="right-template"
+            placeholder="ba5cb212-0ead-4e70-9b49-0ee8fe0214dc"
+          />
+        </div>
+        <div class="row-2">
+          <div class="field">
+            <label>Auth Type</label>
+            <select id="right-auth-type">
+              <option value="bearer">Bearer Token</option>
+              <option value="apikey">x-api-key</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Token / Key</label>
+            <input
+              type="password"
+              id="right-auth"
+              placeholder="Paste token or API key"
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button class="btn btn-primary" id="compare-btn" onclick="doCompare()">
+        Compare Templates
+      </button>
+      <button class="btn btn-secondary" onclick="clearResults()">Clear</button>
+      <div class="view-toggle">
+        <button class="vt-btn active" id="vt-inline" onclick="setViewMode('inline')">Inline</button>
+        <button class="vt-btn" id="vt-sidebyside" onclick="setViewMode('sidebyside')">Side by Side</button>
+      </div>
+      <div class="toggle-row">
+        <label class="toggle-label"
+          ><input type="checkbox" id="show-context" checked /> Show context
+          lines</label
+        >
+        <label class="toggle-label"
+          ><input type="checkbox" id="compare-css" checked /> Compare CSS</label
+        >
+        <label class="toggle-label"
+          ><input type="checkbox" id="compare-js" checked /> Compare JS</label
+        >
+      </div>
+      <span class="status-msg" id="status"></span>
+    </div>
+
+    <div id="page-tabs" class="page-tabs" style="display: none"></div>
+    <div id="summary-bar" class="summary-bar" style="display: none"></div>
+    <div id="diff-output" class="diff-container">
+      <!-- Diff navigation bar -->
+      <div class="diff-nav" id="diff-nav" style="display:none;">
+        <button class="nav-btn" onclick="goToHunk('prev')" title="Previous diff (↑)">&#9650; Prev</button>
+        <span class="nav-counter" id="nav-counter"><strong>—</strong> / 0</span>
+        <button class="nav-btn" onclick="goToHunk('next')" title="Next diff (↓)">&#9660; Next</button>
+        <div class="sep"></div>
+        <button class="nav-btn ignore-btn" onclick="ignoreCurrent()" title="Ignore this hunk">&#10005; Ignore</button>
+        <button class="nav-btn" onclick="restoreAllHunks()" title="Restore all ignored hunks">Restore All</button>
+        <span class="ignored-count" id="ignored-count"></span>
+      </div>
+
+      <div class="empty-state">
+        <h3>No comparison loaded</h3>
+        <p>
+          Enter template IDs and auth tokens on both sides, then click Compare.
+        </p>
+      </div>
+    </div>
+
+    <script>
+      // Show/hide custom URL fields
+      document.getElementById("left-base").addEventListener("change", (e) => {
+        document.getElementById("left-custom-url-wrap").style.display =
+          e.target.value === "custom" ? "" : "none";
+      });
+      document.getElementById("right-base").addEventListener("change", (e) => {
+        document.getElementById("right-custom-url-wrap").style.display =
+          e.target.value === "custom" ? "" : "none";
+      });
+
+      let leftData = null,
+        rightData = null;
+      let allPageIds = [];
+      let currentPageId = null;
+      let viewMode = 'inline'; // 'inline' or 'sidebyside'
+
+      function setViewMode(mode) {
+        viewMode = mode;
+        document.getElementById('vt-inline').classList.toggle('active', mode === 'inline');
+        document.getElementById('vt-sidebyside').classList.toggle('active', mode === 'sidebyside');
+        saveToStorage();
+        if (currentPageId) renderDiff(currentPageId);
+      }
+
+      function getBaseUrl(side) {
+        const sel = document.getElementById(side + "-base").value;
+        if (sel === "custom")
+          return document
+            .getElementById(side + "-custom-url")
+            .value.replace(/\/+$/, "");
+        return sel;
+      }
+
+      function setStatus(msg, isError) {
+        const el = document.getElementById("status");
+        el.textContent = msg;
+        el.className = "status-msg" + (isError ? " error" : "");
+      }
+
+      async function fetchTemplate(side) {
+        const base = getBaseUrl(side);
+        const templateId = document
+          .getElementById(side + "-template")
+          .value.trim();
+        const authType = document.getElementById(side + "-auth-type").value;
+        const auth = document.getElementById(side + "-auth").value.trim();
+
+        if (!base || !templateId || !auth)
+          throw new Error(`${side}: Fill in all fields`);
+
+        const url = `${base}/internal/api/v1/website/templates/${templateId}/defaults/all`;
+        const headers = {
+          accept: "*/*",
+          "content-type": "application/json",
+          "ngrok-skip-browser-warning": "true",
+          "x-ops-request": "true",
+          "cache-control": "no-cache",
+        };
+        if (authType === "bearer") {
+          headers["authorization"] = `Bearer ${auth}`;
+        } else {
+          headers["x-api-key"] = auth;
+        }
+
+        const resp = await fetch(url, { headers });
+        if (!resp.ok) {
+          const text = await resp.text().catch(() => "");
+          throw new Error(
+            `${side}: HTTP ${resp.status} — ${text.substring(0, 200)}`,
+          );
+        }
+        return resp.json();
+      }
+
+      async function doCompare() {
+        const btn = document.getElementById("compare-btn");
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner"></span> Fetching...';
+        setStatus("");
+
+        try {
+          const [left, right] = await Promise.all([
+            fetchTemplate("left"),
+            fetchTemplate("right"),
+          ]);
+          leftData = {};
+          rightData = {};
+
+          left.forEach((p) => {
+            leftData[p.pageId] = p;
+          });
+          right.forEach((p) => {
+            rightData[p.pageId] = p;
+          });
+
+          const pageIdSet = new Set([
+            ...Object.keys(leftData),
+            ...Object.keys(rightData),
+          ]);
+          allPageIds = Array.from(pageIdSet).sort(
+            (a, b) => Number(a) - Number(b),
+          );
+
+          renderPageTabs();
+          if (allPageIds.length > 0) {
+            selectPage(allPageIds[0]);
+          }
+          setStatus(
+            `Loaded ${left.length} left pages, ${right.length} right pages`,
+          );
+        } catch (err) {
+          setStatus(err.message, true);
+          document.getElementById("diff-output").innerHTML =
+            `<div class="empty-state"><h3>Error</h3><p>${escapeHtml(err.message)}</p></div>`;
+        } finally {
+          btn.disabled = false;
+          btn.textContent = "Compare Templates";
+        }
+      }
+
+      function renderPageTabs() {
+        const container = document.getElementById("page-tabs");
+        container.style.display = "";
+        container.innerHTML = "";
+
+        allPageIds.forEach((pid) => {
+          const inLeft = !!leftData[pid];
+          const inRight = !!rightData[pid];
+          const tab = document.createElement("div");
+          tab.className =
+            "page-tab" +
+            (!inLeft ? " only-right" : "") +
+            (!inRight ? " only-left" : "");
+          const pageName = getPageName(pid);
+          tab.innerHTML = `${pageName} <span class="page-id">#${pid}</span>`;
+          tab.onclick = () => selectPage(pid);
+          tab.dataset.pid = pid;
+          container.appendChild(tab);
+        });
+      }
+
+      function getPageName(pid) {
+        const lp = leftData[pid],
+          rp = rightData[pid];
+        const p = lp || rp;
+        // Try to get a name from sections or navigation
+        if (p && p.navigationLinks && p.navigationLinks.length > 0) {
+          return `Page ${pid}`;
+        }
+        return `Page ${pid}`;
+      }
+
+      function selectPage(pid) {
+        currentPageId = pid;
+        document.querySelectorAll(".page-tab").forEach((t) => {
+          t.classList.toggle("active", t.dataset.pid === pid);
+        });
+        renderDiff(pid);
+      }
+
+      function renderDiff(pid) {
+        const output = document.getElementById("diff-output");
+        const summaryBar = document.getElementById("summary-bar");
+        const lp = leftData[pid];
+        const rp = rightData[pid];
+        const showCSS = document.getElementById("compare-css").checked;
+        const showJS = document.getElementById("compare-js").checked;
+
+        if (!lp && !rp) {
+          output.innerHTML = '<div class="empty-state"><h3>No data</h3></div>';
+          summaryBar.style.display = "none";
+          return;
+        }
+
+        let html = "";
+        let totalAdded = 0,
+          totalRemoved = 0;
+
+        const builder = viewMode === 'sidebyside' ? buildSideBySideHtml : buildDiffHtml;
+
+        if (showCSS) {
+          const leftCss = lp ? lp.globalCss || "" : "";
+          const rightCss = rp ? rp.globalCss || "" : "";
+          const cssResult = builder("globalCSS", leftCss, rightCss);
+          html += cssResult.html;
+          totalAdded += cssResult.added;
+          totalRemoved += cssResult.removed;
+        }
+
+        if (showJS) {
+          const leftJs = lp ? lp.globalJs || "" : "";
+          const rightJs = rp ? rp.globalJs || "" : "";
+          const jsResult = builder("globalJS", leftJs, rightJs);
+          html += jsResult.html;
+          totalAdded += jsResult.added;
+          totalRemoved += jsResult.removed;
+        }
+
+        if (!showCSS && !showJS) {
+          html =
+            '<div class="empty-state"><p>Enable at least one of CSS or JS comparison.</p></div>';
+        }
+
+        // Keep the nav bar, replace everything else
+        const navEl = document.getElementById('diff-nav');
+        output.innerHTML = '';
+        output.appendChild(navEl);
+        output.insertAdjacentHTML('beforeend', html);
+
+        summaryBar.style.display = "";
+        summaryBar.innerHTML = `
+                <span>Page <strong>#${pid}</strong></span>
+                <span>Left: <strong>${lp ? document.getElementById("left-template").value.substring(0, 8) + "..." : "N/A"}</strong></span>
+                <span>Right: <strong>${rp ? document.getElementById("right-template").value.substring(0, 8) + "..." : "N/A"}</strong></span>
+                <span class="count green">+${totalAdded} added</span>
+                <span class="count red">-${totalRemoved} removed</span>
+            `;
+
+        // Init navigation
+        initDiffNav();
+      }
+
+      // --- Diff navigation state ---
+      let currentHunkIndex = -1;
+      let totalHunks = 0;
+      let ignoredHunks = new Set();
+
+      function buildDiffHtml(label, leftText, rightText) {
+        const showContext = document.getElementById("show-context").checked;
+        let html = '<div class="diff-section">';
+
+        if (leftText === rightText) {
+          html += `<div class="diff-header"><span class="file-name">${label}</span><span class="diff-stats"><span class="same">Identical</span></span></div>`;
+          html += `<div class="identical-notice">Files are identical — no differences found.</div>`;
+          html += "</div>";
+          return { html, added: 0, removed: 0 };
+        }
+
+        const changes = Diff.diffLines(leftText, rightText);
+
+        let addedCount = 0, removedCount = 0;
+        let leftLineNo = 1, rightLineNo = 1;
+        let lines = [];
+
+        changes.forEach((part) => {
+          const partLines = part.value.split("\n");
+          if (partLines[partLines.length - 1] === "") partLines.pop();
+
+          partLines.forEach((line) => {
+            if (part.added) {
+              addedCount++;
+              lines.push({ type: "added", leftNo: "", rightNo: rightLineNo++, content: line });
+            } else if (part.removed) {
+              removedCount++;
+              lines.push({ type: "removed", leftNo: leftLineNo++, rightNo: "", content: line });
+            } else {
+              lines.push({ type: "context", leftNo: leftLineNo++, rightNo: rightLineNo++, content: line });
+            }
+          });
+        });
+
+        // Group into hunks: each hunk = a block of consecutive changed lines + surrounding context
+        let hunks = [];
+        let currentHunk = null;
+        const contextRadius = 3;
+
+        lines.forEach((l, i) => {
+          if (l.type !== "context") {
+            if (!currentHunk) {
+              currentHunk = { startIdx: i, endIdx: i };
+            } else {
+              currentHunk.endIdx = i;
+            }
+          } else if (currentHunk && i > currentHunk.endIdx + contextRadius) {
+            hunks.push({ ...currentHunk });
+            currentHunk = null;
+          }
+        });
+        if (currentHunk) hunks.push(currentHunk);
+
+        // Expand hunks with context
+        hunks = hunks.map((h, hIdx) => {
+          const start = Math.max(0, h.startIdx - contextRadius);
+          const end = Math.min(lines.length - 1, h.endIdx + contextRadius);
+          return { ...h, ctxStart: start, ctxEnd: end, hunkId: `${label}-hunk-${hIdx}` };
+        });
+
+        html += `<div class="diff-header">
+          <span class="file-name">${label}</span>
+          <span class="diff-stats">
+            <span class="added">+${addedCount}</span>
+            <span class="removed">-${removedCount}</span>
+            <span class="same">&nbsp;(${hunks.length} hunks)</span>
+          </span>
+        </div>`;
+        html += '<div class="diff-body">';
+
+        if (hunks.length === 0) {
+          // All context, no changes (shouldn't happen since we checked equality above)
+          lines.forEach((l) => { html += renderDiffLine(l); });
+        } else if (showContext) {
+          // Render everything, but wrap changed groups in hunk divs
+          let lineIdx = 0;
+          hunks.forEach((h, hIdx) => {
+            // Render context lines before this hunk
+            while (lineIdx < h.ctxStart) {
+              html += renderDiffLine(lines[lineIdx]);
+              lineIdx++;
+            }
+            // Render hunk
+            html += `<div class="diff-hunk" data-hunk-id="${h.hunkId}" id="${h.hunkId}">`;
+            while (lineIdx <= h.ctxEnd && lineIdx < lines.length) {
+              html += renderDiffLine(lines[lineIdx]);
+              lineIdx++;
+            }
+            html += `</div>`;
+            // Placeholder for ignored state
+            html += `<div class="diff-hunk-ignored-placeholder" data-for-hunk="${h.hunkId}" style="display:none;">
+              <span>Hunk #${hIdx + 1} ignored (${h.endIdx - h.startIdx + 1} changed lines)</span>
+              <button class="restore-btn" onclick="restoreHunk('${h.hunkId}')">Restore</button>
+            </div>`;
+          });
+          // Remaining context after last hunk
+          while (lineIdx < lines.length) {
+            html += renderDiffLine(lines[lineIdx]);
+            lineIdx++;
+          }
+        } else {
+          // Collapsed: only show hunks with context
+          hunks.forEach((h, hIdx) => {
+            if (hIdx > 0) {
+              const gap = h.ctxStart - hunks[hIdx - 1].ctxEnd - 1;
+              if (gap > 0) {
+                html += `<div class="diff-line separator"><span class="line-num">&nbsp;</span><span class="line-num">&nbsp;</span><span class="line-content">... ${gap} unchanged lines hidden ...</span></div>`;
+              }
+            } else if (h.ctxStart > 0) {
+              html += `<div class="diff-line separator"><span class="line-num">&nbsp;</span><span class="line-num">&nbsp;</span><span class="line-content">... ${h.ctxStart} unchanged lines hidden ...</span></div>`;
+            }
+            html += `<div class="diff-hunk" data-hunk-id="${h.hunkId}" id="${h.hunkId}">`;
+            for (let i = h.ctxStart; i <= h.ctxEnd && i < lines.length; i++) {
+              html += renderDiffLine(lines[i]);
+            }
+            html += `</div>`;
+            html += `<div class="diff-hunk-ignored-placeholder" data-for-hunk="${h.hunkId}" style="display:none;">
+              <span>Hunk #${hIdx + 1} ignored (${h.endIdx - h.startIdx + 1} changed lines)</span>
+              <button class="restore-btn" onclick="restoreHunk('${h.hunkId}')">Restore</button>
+            </div>`;
+          });
+          // Trailing hidden
+          if (hunks.length > 0) {
+            const lastEnd = hunks[hunks.length - 1].ctxEnd;
+            if (lastEnd < lines.length - 1) {
+              html += `<div class="diff-line separator"><span class="line-num">&nbsp;</span><span class="line-num">&nbsp;</span><span class="line-content">... ${lines.length - 1 - lastEnd} unchanged lines hidden ...</span></div>`;
+            }
+          }
+        }
+
+        html += "</div></div>";
+        return { html, added: addedCount, removed: removedCount };
+      }
+
+      function renderDiffLine(l) {
+        if (l.type === "separator") {
+          return `<div class="diff-line separator"><span class="line-num">&nbsp;</span><span class="line-num">&nbsp;</span><span class="line-content">${escapeHtml(l.content)}</span></div>`;
+        }
+        const prefix = l.type === "added" ? "+" : l.type === "removed" ? "-" : " ";
+        return `<div class="diff-line ${l.type}">
+          <span class="line-num left-num">${l.leftNo}</span>
+          <span class="line-num right-num">${l.rightNo}</span>
+          <span class="line-content"><span class="line-prefix">${prefix}</span>${escapeHtml(l.content)}</span>
+        </div>`;
+      }
+
+      // --- Side-by-side diff builder ---
+      function buildSideBySideHtml(label, leftText, rightText) {
+        let html = '<div class="diff-section">';
+
+        if (leftText === rightText) {
+          html += `<div class="diff-header"><span class="file-name">${label}</span><span class="diff-stats"><span class="same">Identical</span></span></div>`;
+          html += `<div class="identical-notice">Files are identical — no differences found.</div></div>`;
+          return { html, added: 0, removed: 0 };
+        }
+
+        const changes = Diff.diffLines(leftText, rightText);
+        let addedCount = 0, removedCount = 0;
+
+        // Build paired rows: each row = { left: {num, code, type}, right: {num, code, type} }
+        let rows = [];
+        let leftLineNo = 1, rightLineNo = 1;
+
+        changes.forEach(part => {
+          const partLines = part.value.split("\n");
+          if (partLines[partLines.length - 1] === "") partLines.pop();
+
+          if (!part.added && !part.removed) {
+            // Context — both sides
+            partLines.forEach(line => {
+              rows.push({
+                left: { num: leftLineNo++, code: line, type: 'context' },
+                right: { num: rightLineNo++, code: line, type: 'context' }
+              });
+            });
+          } else if (part.removed) {
+            removedCount += partLines.length;
+            // Peek ahead: if the next change is added, pair them
+            partLines.forEach(line => {
+              rows.push({
+                left: { num: leftLineNo++, code: line, type: 'removed' },
+                right: null // placeholder, may be filled by pairing
+              });
+            });
+          } else if (part.added) {
+            addedCount += partLines.length;
+            // Try to pair with preceding unpaired removed rows
+            let pairIdx = rows.length - 1;
+            // Find first unpaired removed row in the trailing block
+            while (pairIdx >= 0 && rows[pairIdx].left && rows[pairIdx].left.type === 'removed' && !rows[pairIdx].right) {
+              pairIdx--;
+            }
+            pairIdx++; // first unpaired removed
+
+            let addedIdx = 0;
+            // Pair removed rows with added lines
+            while (pairIdx < rows.length && addedIdx < partLines.length) {
+              if (rows[pairIdx].left && rows[pairIdx].left.type === 'removed' && !rows[pairIdx].right) {
+                rows[pairIdx].right = { num: rightLineNo++, code: partLines[addedIdx], type: 'added' };
+                addedIdx++;
+              }
+              pairIdx++;
+            }
+            // Remaining added lines (no removed to pair with)
+            while (addedIdx < partLines.length) {
+              rows.push({
+                left: null,
+                right: { num: rightLineNo++, code: partLines[addedIdx], type: 'added' }
+              });
+              addedIdx++;
+            }
+          }
+        });
+
+        // Group into hunks for navigation
+        const contextRadius = 3;
+        let hunkRanges = [];
+        let curHunk = null;
+        rows.forEach((r, i) => {
+          const isChange = (r.left && r.left.type !== 'context') || (r.right && r.right.type !== 'context' && r.right !== null) || !r.left || !r.right;
+          const isCtx = r.left && r.right && r.left.type === 'context' && r.right.type === 'context';
+          if (!isCtx) {
+            if (!curHunk) curHunk = { s: i, e: i };
+            else curHunk.e = i;
+          } else if (curHunk && i > curHunk.e + contextRadius) {
+            hunkRanges.push({ ...curHunk });
+            curHunk = null;
+          }
+        });
+        if (curHunk) hunkRanges.push(curHunk);
+
+        hunkRanges = hunkRanges.map((h, idx) => ({
+          ...h,
+          cs: Math.max(0, h.s - contextRadius),
+          ce: Math.min(rows.length - 1, h.e + contextRadius),
+          hunkId: `${label}-hunk-${idx}`
+        }));
+
+        html += `<div class="diff-header">
+          <span class="file-name">${label}</span>
+          <span class="diff-stats">
+            <span class="added">+${addedCount}</span>
+            <span class="removed">-${removedCount}</span>
+            <span class="same">&nbsp;(${hunkRanges.length} hunks)</span>
+          </span>
+        </div>`;
+
+        const showContext = document.getElementById("show-context").checked;
+
+        // Build left and right HTML in lockstep
+        function renderSbsRow(r) {
+          const lType = r.left ? `sbs-${r.left.type}` : 'sbs-empty';
+          const rType = r.right ? `sbs-${r.right.type}` : 'sbs-empty';
+          const lNum = r.left ? r.left.num : '';
+          const rNum = r.right ? r.right.num : '';
+          const lCode = r.left ? escapeHtml(r.left.code) : '';
+          const rCode = r.right ? escapeHtml(r.right.code) : '';
+          return {
+            leftHtml: `<div class="sbs-line ${lType}"><span class="sbs-num">${lNum}</span><span class="sbs-code">${lCode}</span></div>`,
+            rightHtml: `<div class="sbs-line ${rType}"><span class="sbs-num">${rNum}</span><span class="sbs-code">${rCode}</span></div>`
+          };
+        }
+
+        let leftHtml = '<div class="sbs-pane-header">LEFT — Sandbox</div>';
+        let rightHtml = '<div class="sbs-pane-header">RIGHT — Prod</div>';
+
+        if (showContext || hunkRanges.length === 0) {
+          let rowIdx = 0;
+          hunkRanges.forEach((h, hIdx) => {
+            while (rowIdx < h.cs) {
+              const r = renderSbsRow(rows[rowIdx]);
+              leftHtml += r.leftHtml;
+              rightHtml += r.rightHtml;
+              rowIdx++;
+            }
+            leftHtml += `<div class="diff-hunk" data-hunk-id="${h.hunkId}" id="${h.hunkId}">`;
+            rightHtml += `<div class="diff-hunk" data-hunk-id="${h.hunkId}-r">`;
+            while (rowIdx <= h.ce && rowIdx < rows.length) {
+              const r = renderSbsRow(rows[rowIdx]);
+              leftHtml += r.leftHtml;
+              rightHtml += r.rightHtml;
+              rowIdx++;
+            }
+            leftHtml += '</div>';
+            rightHtml += '</div>';
+            leftHtml += `<div class="diff-hunk-ignored-placeholder" data-for-hunk="${h.hunkId}" style="display:none;">
+              <span>Hunk #${hIdx + 1} ignored</span>
+              <button class="restore-btn" onclick="restoreHunk('${h.hunkId}')">Restore</button>
+            </div>`;
+          });
+          while (rowIdx < rows.length) {
+            const r = renderSbsRow(rows[rowIdx]);
+            leftHtml += r.leftHtml;
+            rightHtml += r.rightHtml;
+            rowIdx++;
+          }
+        } else {
+          // Collapsed context
+          hunkRanges.forEach((h, hIdx) => {
+            if (hIdx > 0) {
+              const gap = h.cs - hunkRanges[hIdx - 1].ce - 1;
+              if (gap > 0) {
+                const sepLine = `<div class="sbs-line sbs-sep"><span class="sbs-num"></span><span class="sbs-code">... ${gap} lines hidden ...</span></div>`;
+                leftHtml += sepLine; rightHtml += sepLine;
+              }
+            } else if (h.cs > 0) {
+              const sepLine = `<div class="sbs-line sbs-sep"><span class="sbs-num"></span><span class="sbs-code">... ${h.cs} lines hidden ...</span></div>`;
+              leftHtml += sepLine; rightHtml += sepLine;
+            }
+            leftHtml += `<div class="diff-hunk" data-hunk-id="${h.hunkId}" id="${h.hunkId}">`;
+            rightHtml += `<div class="diff-hunk" data-hunk-id="${h.hunkId}-r">`;
+            for (let i = h.cs; i <= h.ce && i < rows.length; i++) {
+              const r = renderSbsRow(rows[i]);
+              leftHtml += r.leftHtml;
+              rightHtml += r.rightHtml;
+            }
+            leftHtml += '</div>';
+            rightHtml += '</div>';
+            leftHtml += `<div class="diff-hunk-ignored-placeholder" data-for-hunk="${h.hunkId}" style="display:none;">
+              <span>Hunk #${hIdx + 1} ignored</span>
+              <button class="restore-btn" onclick="restoreHunk('${h.hunkId}')">Restore</button>
+            </div>`;
+          });
+          if (hunkRanges.length > 0) {
+            const lastEnd = hunkRanges[hunkRanges.length - 1].ce;
+            if (lastEnd < rows.length - 1) {
+              const sepLine = `<div class="sbs-line sbs-sep"><span class="sbs-num"></span><span class="sbs-code">... ${rows.length - 1 - lastEnd} lines hidden ...</span></div>`;
+              leftHtml += sepLine; rightHtml += sepLine;
+            }
+          }
+        }
+
+        html += `<div class="diff-side-by-side" data-label="${label}">
+          <div class="sbs-pane" data-side="left">${leftHtml}</div>
+          <div class="sbs-pane" data-side="right">${rightHtml}</div>
+        </div>`;
+
+        html += '</div>';
+
+        return { html, added: addedCount, removed: removedCount };
+      }
+
+      // Sync scroll between side-by-side panes
+      document.addEventListener('scroll', function(e) {
+        if (!e.target.classList || !e.target.classList.contains('sbs-pane')) return;
+        const parent = e.target.closest('.diff-side-by-side');
+        if (!parent) return;
+        const panes = parent.querySelectorAll('.sbs-pane');
+        panes.forEach(p => {
+          if (p !== e.target) {
+            p.scrollTop = e.target.scrollTop;
+          }
+        });
+      }, true);
+
+      // --- Navigation functions ---
+      function primaryHunkSelector() {
+        // Only select left-side hunks (exclude -r paired hunks in side-by-side)
+        return '.diff-hunk:not([data-hunk-id$="-r"])';
+      }
+
+      function initDiffNav() {
+        const hunks = document.querySelectorAll(primaryHunkSelector());
+        totalHunks = hunks.length;
+        currentHunkIndex = -1;
+        ignoredHunks = new Set();
+        updateNavUI();
+        const nav = document.getElementById('diff-nav');
+        if (nav) nav.style.display = totalHunks > 0 ? 'flex' : 'none';
+      }
+
+      function getVisibleHunkIndices() {
+        const all = document.querySelectorAll(primaryHunkSelector());
+        const visible = [];
+        all.forEach((el, i) => {
+          if (!el.classList.contains('ignored-hunk')) visible.push(i);
+        });
+        return visible;
+      }
+
+      function goToHunk(direction) {
+        const visible = getVisibleHunkIndices();
+        if (visible.length === 0) return;
+
+        if (direction === 'next') {
+          const next = visible.find(i => i > currentHunkIndex);
+          currentHunkIndex = next !== undefined ? next : visible[0];
+        } else {
+          const prev = visible.reverse().find(i => i < currentHunkIndex);
+          currentHunkIndex = prev !== undefined ? prev : visible[visible.length - 1];
+        }
+
+        highlightCurrentHunk();
+        updateNavUI();
+      }
+
+      function highlightCurrentHunk() {
+        document.querySelectorAll('.diff-hunk').forEach(el => el.classList.remove('current-hunk'));
+        const hunks = document.querySelectorAll(primaryHunkSelector());
+        if (currentHunkIndex >= 0 && currentHunkIndex < hunks.length) {
+          const el = hunks[currentHunkIndex];
+          el.classList.add('current-hunk');
+          // Also highlight paired right-side hunk
+          const paired = document.querySelector(`[data-hunk-id="${el.dataset.hunkId}-r"]`);
+          if (paired) paired.classList.add('current-hunk');
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }
+
+      function ignoreCurrent() {
+        const hunks = document.querySelectorAll('.diff-hunk:not([data-hunk-id$="-r"])');
+        if (currentHunkIndex < 0 || currentHunkIndex >= hunks.length) return;
+
+        const el = hunks[currentHunkIndex];
+        const hunkId = el.dataset.hunkId;
+        el.classList.add('ignored-hunk');
+        ignoredHunks.add(hunkId);
+
+        // Also hide paired right pane hunk in side-by-side
+        const paired = document.querySelector(`[data-hunk-id="${hunkId}-r"]`);
+        if (paired) paired.classList.add('ignored-hunk');
+
+        // Show placeholder
+        const placeholder = document.querySelector(`[data-for-hunk="${hunkId}"]`);
+        if (placeholder) placeholder.style.display = 'flex';
+
+        // Move to next visible hunk
+        const visible = getVisibleHunkIndices();
+        if (visible.length > 0) {
+          const next = visible.find(i => i > currentHunkIndex) || visible[0];
+          currentHunkIndex = next;
+          highlightCurrentHunk();
+        } else {
+          currentHunkIndex = -1;
+          document.querySelectorAll('.diff-hunk').forEach(el => el.classList.remove('current-hunk'));
+        }
+        updateNavUI();
+      }
+
+      function restoreHunk(hunkId) {
+        const el = document.getElementById(hunkId);
+        if (el) {
+          el.classList.remove('ignored-hunk');
+          ignoredHunks.delete(hunkId);
+        }
+        // Also restore paired right pane hunk
+        const paired = document.querySelector(`[data-hunk-id="${hunkId}-r"]`);
+        if (paired) paired.classList.remove('ignored-hunk');
+
+        const placeholder = document.querySelector(`[data-for-hunk="${hunkId}"]`);
+        if (placeholder) placeholder.style.display = 'none';
+        updateNavUI();
+      }
+
+      function restoreAllHunks() {
+        document.querySelectorAll('.diff-hunk.ignored-hunk').forEach(el => {
+          el.classList.remove('ignored-hunk');
+        });
+        document.querySelectorAll('.diff-hunk-ignored-placeholder').forEach(el => {
+          el.style.display = 'none';
+        });
+        ignoredHunks.clear();
+        updateNavUI();
+      }
+
+      function updateNavUI() {
+        const visible = getVisibleHunkIndices();
+        const counter = document.getElementById('nav-counter');
+        const ignoredLabel = document.getElementById('ignored-count');
+
+        if (counter) {
+          if (visible.length === 0) {
+            counter.innerHTML = 'No hunks';
+          } else if (currentHunkIndex < 0) {
+            counter.innerHTML = `<strong>—</strong> / ${visible.length}`;
+          } else {
+            const pos = visible.indexOf(currentHunkIndex) + 1;
+            counter.innerHTML = `<strong>${pos}</strong> / ${visible.length}`;
+          }
+        }
+        if (ignoredLabel) {
+          ignoredLabel.textContent = ignoredHunks.size > 0 ? `${ignoredHunks.size} ignored` : '';
+        }
+      }
+
+      function escapeHtml(str) {
+        return str
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;");
+      }
+
+      function clearResults() {
+        leftData = null;
+        rightData = null;
+        allPageIds = [];
+        currentPageId = null;
+        document.getElementById("page-tabs").style.display = "none";
+        document.getElementById("page-tabs").innerHTML = "";
+        document.getElementById("summary-bar").style.display = "none";
+        document.getElementById("diff-output").innerHTML =
+          '<div class="empty-state"><h3>No comparison loaded</h3><p>Enter template IDs and auth tokens on both sides, then click Compare.</p></div>';
+      }
+
+      // Re-render on toggle changes
+      document.getElementById("show-context").addEventListener("change", () => {
+        if (currentPageId) renderDiff(currentPageId);
+      });
+      document.getElementById("compare-css").addEventListener("change", () => {
+        if (currentPageId) renderDiff(currentPageId);
+      });
+      document.getElementById("compare-js").addEventListener("change", () => {
+        if (currentPageId) renderDiff(currentPageId);
+      });
+
+      // Keyboard shortcuts for diff navigation
+      document.addEventListener('keydown', (e) => {
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') return;
+        if (e.key === 'ArrowDown' || e.key === 'j') { e.preventDefault(); goToHunk('next'); }
+        if (e.key === 'ArrowUp' || e.key === 'k') { e.preventDefault(); goToHunk('prev'); }
+        if (e.key === 'x' || e.key === 'Delete') { e.preventDefault(); ignoreCurrent(); }
+      });
+
+      // --- localStorage persistence ---
+      const STORAGE_KEY = 'template-diff-compare-state';
+
+      const persistFields = [
+        'left-base', 'left-custom-url', 'left-template', 'left-auth-type', 'left-auth',
+        'right-base', 'right-custom-url', 'right-template', 'right-auth-type', 'right-auth',
+        'show-context', 'compare-css', 'compare-js'
+      ];
+
+      function saveToStorage() {
+        const state = {};
+        persistFields.forEach(id => {
+          const el = document.getElementById(id);
+          if (!el) return;
+          if (el.type === 'checkbox') {
+            state[id] = el.checked;
+          } else {
+            state[id] = el.value;
+          }
+        });
+        state['viewMode'] = viewMode;
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      }
+
+      function loadFromStorage() {
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          if (!raw) return;
+          const state = JSON.parse(raw);
+
+          persistFields.forEach(id => {
+            const el = document.getElementById(id);
+            if (!el || state[id] === undefined) return;
+            if (el.type === 'checkbox') {
+              el.checked = state[id];
+            } else {
+              el.value = state[id];
+            }
+          });
+
+          // Show custom URL fields if needed
+          if (state['left-base'] === 'custom') {
+            document.getElementById('left-custom-url-wrap').style.display = '';
+          }
+          if (state['right-base'] === 'custom') {
+            document.getElementById('right-custom-url-wrap').style.display = '';
+          }
+          // Restore view mode
+          if (state['viewMode']) {
+            setViewMode(state['viewMode']);
+          }
+        } catch (e) {
+          console.warn('Failed to load saved state:', e);
+        }
+      }
+
+      // Auto-save on any input change
+      persistFields.forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.addEventListener('input', saveToStorage);
+        el.addEventListener('change', saveToStorage);
+      });
+
+      // Load saved values on page load
+      loadFromStorage();
+    </script>
+  </body>
+</html>
