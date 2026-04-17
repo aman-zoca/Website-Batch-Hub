@@ -1216,6 +1216,10 @@
               <span>Hunk #${hIdx + 1} ignored</span>
               <button class="restore-btn" onclick="restoreHunk('${h.hunkId}')">Restore</button>
             </div>`;
+            rightHtml += `<div class="diff-hunk-ignored-placeholder" data-for-hunk="${h.hunkId}-r" style="display:none;">
+              <span>Hunk #${hIdx + 1} ignored</span>
+              <button class="restore-btn" onclick="restoreHunk('${h.hunkId}')">Restore</button>
+            </div>`;
           });
           while (rowIdx < rows.length) {
             const r = renderSbsRow(rows[rowIdx]);
@@ -1246,6 +1250,10 @@
             leftHtml += '</div>';
             rightHtml += '</div>';
             leftHtml += `<div class="diff-hunk-ignored-placeholder" data-for-hunk="${h.hunkId}" style="display:none;">
+              <span>Hunk #${hIdx + 1} ignored</span>
+              <button class="restore-btn" onclick="restoreHunk('${h.hunkId}')">Restore</button>
+            </div>`;
+            rightHtml += `<div class="diff-hunk-ignored-placeholder" data-for-hunk="${h.hunkId}-r" style="display:none;">
               <span>Hunk #${hIdx + 1} ignored</span>
               <button class="restore-btn" onclick="restoreHunk('${h.hunkId}')">Restore</button>
             </div>`;
@@ -1349,9 +1357,8 @@
         const paired = document.querySelector(`[data-hunk-id="${hunkId}-r"]`);
         if (paired) paired.classList.add('ignored-hunk');
 
-        // Show placeholder
-        const placeholder = document.querySelector(`[data-for-hunk="${hunkId}"]`);
-        if (placeholder) placeholder.style.display = 'flex';
+        // Show placeholders (both left and right in side-by-side)
+        document.querySelectorAll(`[data-for-hunk="${hunkId}"], [data-for-hunk="${hunkId}-r"]`).forEach(p => p.style.display = 'flex');
 
         // Move to next visible hunk
         const visible = getVisibleHunkIndices();
@@ -1376,8 +1383,8 @@
         const paired = document.querySelector(`[data-hunk-id="${hunkId}-r"]`);
         if (paired) paired.classList.remove('ignored-hunk');
 
-        const placeholder = document.querySelector(`[data-for-hunk="${hunkId}"]`);
-        if (placeholder) placeholder.style.display = 'none';
+        // Hide placeholders (both left and right in side-by-side)
+        document.querySelectorAll(`[data-for-hunk="${hunkId}"], [data-for-hunk="${hunkId}-r"]`).forEach(p => p.style.display = 'none');
         updateNavUI();
       }
 
