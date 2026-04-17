@@ -1,0 +1,709 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect fill='%233b82f6' rx='15' width='100' height='100'/%3E%3Cpath d='M25 50 L42 67 L75 33' stroke='white' stroke-width='10' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+    <title>Website Popup Tester</title>
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        font-family: -apple-system, sans-serif;
+        background: #f5f5f5;
+        color: #333;
+        padding: 20px;
+      }
+      h1 {
+        margin-bottom: 20px;
+        color: #111;
+      }
+      .controls {
+        background: #fff;
+        padding: 16px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        display: flex;
+        gap: 16px;
+        flex-wrap: wrap;
+        align-items: center;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+      }
+      .controls label {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: #555;
+      }
+      .controls input[type="number"] {
+        width: 70px;
+        padding: 8px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        background: #fff;
+        color: #333;
+      }
+      .controls input[type="file"] {
+        display: none;
+      }
+      .btn {
+        padding: 10px 16px;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        font-weight: 500;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .btn-purple {
+        background: #d7cbf6;
+        color: white;
+      }
+      .btn-green {
+        background: #22c55e;
+        color: white;
+      }
+      .btn-red {
+        background: #ef4444;
+        color: white;
+      }
+      .btn-blue {
+        background: #3b82f6;
+        color: white;
+      }
+      .btn-gray {
+        background: #6b7280;
+        color: white;
+      }
+      .btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      .stats {
+        display: flex;
+        gap: 12px;
+        margin-left: auto;
+      }
+      .stat {
+        padding: 6px 12px;
+        border-radius: 4px;
+        font-size: 14px;
+      }
+      .stat-total {
+        background: #e5e7eb;
+        color: #374151;
+      }
+      .stat-success {
+        background: #dcfce7;
+        color: #166534;
+      }
+      .stat-failed {
+        background: #fee2e2;
+        color: #991b1b;
+      }
+      .stat-pending {
+        background: #f3f4f6;
+        color: #6b7280;
+      }
+      .main {
+        display: flex;
+        gap: 16px;
+        height: calc(100vh - 180px);
+      }
+      .table-wrap {
+        flex: 1;
+        background: #fff;
+        border-radius: 8px;
+        overflow: auto;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+      }
+      th,
+      td {
+        padding: 10px 8px;
+        text-align: left;
+        border-bottom: 1px solid #e5e7eb;
+        white-space: nowrap;
+      }
+      th {
+        background: #f9fafb;
+        position: sticky;
+        top: 0;
+        font-weight: 600;
+        color: #374151;
+      }
+      tr:hover {
+        background: #f9fafb;
+      }
+      tr.running {
+        background: #dbeafe;
+      }
+      tr.success {
+        background: #dcfce7;
+      }
+      tr.failed {
+        background: #fee2e2;
+      }
+      .url-cell a {
+        color: #2563eb;
+        text-decoration: none;
+      }
+      .url-cell a:hover {
+        text-decoration: underline;
+      }
+      .step-success {
+        color: #16a34a;
+        font-weight: 500;
+      }
+      .step-failed {
+        color: #dc2626;
+        font-weight: 500;
+      }
+      .logs {
+        width: 320px;
+        background: #fff;
+        border-radius: 8px;
+        display: flex;
+        flex-direction: column;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+      }
+      .logs h3 {
+        padding: 12px;
+        background: #f9fafb;
+        font-size: 14px;
+        border-bottom: 1px solid #e5e7eb;
+        color: #374151;
+      }
+      .logs-content {
+        flex: 1;
+        overflow-y: auto;
+        padding: 10px;
+        font-family: monospace;
+        font-size: 12px;
+      }
+      .log {
+        padding: 4px 8px;
+        margin-bottom: 4px;
+        border-radius: 4px;
+      }
+      .log-info {
+        background: #dbeafe;
+        color: #1e40af;
+      }
+      .log-success {
+        background: #dcfce7;
+        color: #166534;
+      }
+      .log-error {
+        background: #fee2e2;
+        color: #991b1b;
+      }
+      .action-btn {
+        padding: 4px 6px;
+        border: none;
+        background: #e5e7eb;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 12px;
+        margin-right: 4px;
+      }
+      .action-btn:hover {
+        background: #d1d5db;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Website Popup Tester</h1>
+
+    <div class="controls">
+      <label class="btn btn-purple">
+        Import CSV
+        <input type="file" id="fileInput" accept=".csv,.txt" />
+      </label>
+      <button class="btn btn-blue" id="exportBtn">Export</button>
+      <button class="btn btn-gray" id="resetBtn">Reset</button>
+      <button class="btn btn-red" id="removeAllBtn">Remove All</button>
+
+      <input type="text" id="searchInput" placeholder="Search entity, website, url..." style="padding: 8px; border: 1px solid #ddd; border-radius: 4px; width: 200px;" oninput="filterTable()">
+
+      <label
+        >From: <input type="number" id="startIdx" value="0" min="0"
+      /></label>
+      <label>To: <input type="number" id="endIdx" value="0" min="0" /></label>
+      <label
+        >Delay (s):
+        <input type="number" id="delay" value="2" min="0" step="0.5"
+      /></label>
+      <label
+        >Step (ms):
+        <input type="number" id="stepDelay" value="500" min="0" step="100"
+      /></label>
+
+      <button class="btn btn-green" id="runBtn">Run</button>
+      <button class="btn btn-red" id="pauseBtn" style="display: none">
+        Pause
+      </button>
+
+      <div class="stats">
+        <span class="stat stat-total"
+          >Total: <span id="statTotal">0</span></span
+        >
+        <span class="stat stat-success"
+          >Pass: <span id="statSuccess">0</span></span
+        >
+        <span class="stat stat-failed"
+          >Fail: <span id="statFailed">0</span></span
+        >
+        <span class="stat stat-pending"
+          >Pending: <span id="statPending">0</span></span
+        >
+      </div>
+    </div>
+
+    <div class="main">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Actions</th>
+              <th>#</th>
+              <th>Status</th>
+              <th>Entity ID</th>
+              <th>Website ID</th>
+              <th>URL</th>
+              <th>Navigate</th>
+              <th>Nav Click</th>
+              <th>Nav Modal</th>
+              <th>Close</th>
+              <th>Hero Click</th>
+              <th>Hero Modal</th>
+              <th>FirstName</th>
+              <th>LastName</th>
+              <th>Phone</th>
+              <th>Submit</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+      </div>
+
+      <div class="logs">
+        <h3>Logs</h3>
+        <div class="logs-content" id="logsContent"></div>
+      </div>
+    </div>
+
+    <script>
+      const STORAGE_KEY = "website-tester-data";
+      let sites = [];
+      let isRunning = false;
+      let shouldStop = false;
+      let currentIdx = 0;
+
+      // Load from localStorage
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const data = JSON.parse(saved);
+        sites = data.sites || [];
+        document.getElementById("startIdx").value = data.startIdx || 0;
+        document.getElementById("endIdx").value = data.endIdx || 0;
+        document.getElementById("delay").value = data.delay || 2;
+        document.getElementById("stepDelay").value = data.stepDelay || 500;
+        renderTable();
+        updateStats();
+      }
+
+      function save() {
+        localStorage.setItem(
+          STORAGE_KEY,
+          JSON.stringify({
+            sites,
+            startIdx: +document.getElementById("startIdx").value,
+            endIdx: +document.getElementById("endIdx").value,
+            delay: +document.getElementById("delay").value,
+            stepDelay: +document.getElementById("stepDelay").value,
+          }),
+        );
+      }
+
+      function log(msg, type = "info") {
+        const div = document.getElementById("logsContent");
+        const time = new Date().toLocaleTimeString();
+        div.innerHTML += `<div class="log log-${type}">${time} - ${msg}</div>`;
+        div.scrollTop = div.scrollHeight;
+        console.log(`[${type.toUpperCase()}] ${msg}`);
+      }
+
+      function renderTable() {
+        const tbody = document.getElementById("tableBody");
+        tbody.innerHTML = sites
+          .map(
+            (s, i) => `
+        <tr id="row-${i}" class="${s.status || ""}">
+          <td>
+            <button class="action-btn" onclick="copyRow(${i})" title="Copy row data">📋</button>
+            <button class="action-btn" onclick="testRow(${i})" title="Test this row">▶️</button>
+          </td>
+          <td>${i}</td>
+          <td>${s.status || "pending"}</td>
+          <td title="${s.entity_id || ""}">${(s.entity_id || "").slice(0, 8)}...</td>
+          <td title="${s.website_id || ""}">${(s.website_id || "").slice(0, 8)}...</td>
+          <td class="url-cell"><a href="${s.url}" target="_blank">${(s.url || "").replace(/https?:\/\//, "").slice(0, 30)}</a></td>
+          <td class="step-${s.steps?.navigate || ""}">${s.steps?.navigate || "-"}</td>
+          <td class="step-${s.steps?.navbar_click || ""}">${s.steps?.navbar_click || "-"}</td>
+          <td class="step-${s.steps?.navbar_modal || ""}">${s.steps?.navbar_modal || "-"}</td>
+          <td class="step-${s.steps?.close_modal || ""}">${s.steps?.close_modal || "-"}</td>
+          <td class="step-${s.steps?.hero_click || ""}">${s.steps?.hero_click || "-"}</td>
+          <td class="step-${s.steps?.hero_modal || ""}">${s.steps?.hero_modal || "-"}</td>
+          <td class="step-${s.steps?.fill_firstname || ""}">${s.steps?.fill_firstname || "-"}</td>
+          <td class="step-${s.steps?.fill_lastname || ""}">${s.steps?.fill_lastname || "-"}</td>
+          <td class="step-${s.steps?.fill_phone || ""}">${s.steps?.fill_phone || "-"}</td>
+          <td class="step-${s.steps?.submit || ""}">${s.steps?.submit || "-"}</td>
+        </tr>
+      `,
+          )
+          .join("");
+      }
+
+      // Copy row data to clipboard
+      function copyRow(idx) {
+        const s = sites[idx];
+        const data = [
+          s.entity_id || '',
+          s.website_id || '',
+          s.url || '',
+          s.status || 'pending',
+          s.steps?.navigate || '',
+          s.steps?.navbar_click || '',
+          s.steps?.navbar_modal || '',
+          s.steps?.close_modal || '',
+          s.steps?.hero_click || '',
+          s.steps?.hero_modal || '',
+          s.steps?.fill_firstname || '',
+          s.steps?.fill_lastname || '',
+          s.steps?.fill_phone || '',
+          s.steps?.submit || ''
+        ].join('\t');
+        navigator.clipboard.writeText(data);
+        log(`Copied row ${idx} to clipboard`, 'success');
+      }
+
+      // Test single row
+      async function testRow(idx) {
+        if (isRunning) {
+          log('Test already running!', 'error');
+          return;
+        }
+
+        const site = sites[idx];
+        sites[idx].status = 'running';
+        renderTable();
+        log(`[${idx}] Testing: ${site.url}`, 'info');
+
+        try {
+          const stepDelay = +document.getElementById("stepDelay").value;
+          const res = await fetch('http://localhost:3002/api/test', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url: site.url, stepDelay })
+          });
+          const data = await res.json();
+
+          if (data.steps) {
+            sites[idx].steps = {};
+            data.steps.forEach(step => {
+              const key = step.name.toLowerCase();
+              if (key.includes('navigate')) sites[idx].steps.navigate = step.status.toLowerCase();
+              if (key.includes('navbar') && key.includes('click')) sites[idx].steps.navbar_click = step.status.toLowerCase();
+              if (key.includes('navbar') && key.includes('modal')) sites[idx].steps.navbar_modal = step.status.toLowerCase();
+              if (key.includes('close')) sites[idx].steps.close_modal = step.status.toLowerCase();
+              if (key.includes('hero') && key.includes('click')) sites[idx].steps.hero_click = step.status.toLowerCase();
+              if (key.includes('hero') && key.includes('modal')) sites[idx].steps.hero_modal = step.status.toLowerCase();
+              if (key.includes('first')) sites[idx].steps.fill_firstname = step.status.toLowerCase();
+              if (key.includes('last')) sites[idx].steps.fill_lastname = step.status.toLowerCase();
+              if (key.includes('phone')) sites[idx].steps.fill_phone = step.status.toLowerCase();
+              if (key.includes('submit')) sites[idx].steps.submit = step.status.toLowerCase();
+            });
+          }
+
+          sites[idx].status = data.overall === 'SUCCESS' ? 'success' : 'failed';
+          const passed = data.steps?.filter(s => s.status === 'SUCCESS').length || 0;
+          log(`[${idx}] ${data.overall} (${passed}/${data.steps?.length || 0})`, data.overall === 'SUCCESS' ? 'success' : 'error');
+        } catch (err) {
+          sites[idx].status = 'failed';
+          log(`[${idx}] ERROR: ${err.message}`, 'error');
+        }
+
+        renderTable();
+        updateStats();
+        save();
+      }
+
+      function updateStats() {
+        document.getElementById("statTotal").textContent = sites.length;
+        document.getElementById("statSuccess").textContent = sites.filter(
+          (s) => s.status === "success",
+        ).length;
+        document.getElementById("statFailed").textContent = sites.filter(
+          (s) => s.status === "failed",
+        ).length;
+        document.getElementById("statPending").textContent = sites.filter(
+          (s) => !s.status || s.status === "pending",
+        ).length;
+      }
+
+      // File import
+      document.getElementById("fileInput").addEventListener("change", (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        console.log("File selected:", file.name);
+        log(`Loading file: ${file.name}`, "info");
+
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+          const text = evt.target.result;
+          console.log("Raw file content:", text.substring(0, 500));
+
+          const lines = text.split("\n").filter((l) => l.trim());
+          console.log("Lines count:", lines.length);
+
+          // Detect delimiter (tab or comma)
+          const firstLine = lines[0];
+          const delimiter = firstLine.includes("\t") ? "\t" : ",";
+          console.log("Delimiter:", delimiter === "\t" ? "TAB" : "COMMA");
+
+          const headers = firstLine
+            .split(delimiter)
+            .map((h) => h.trim().toLowerCase().replace(/"/g, ""));
+          console.log("Headers found:", headers);
+
+          sites = [];
+          for (let i = 1; i < lines.length; i++) {
+            const line = lines[i].trim();
+            if (!line) continue;
+
+            const values = line
+              .split(delimiter)
+              .map((v) => v.trim().replace(/"/g, ""));
+            console.log(`Row ${i}:`, values);
+
+            const obj = { steps: {}, status: "pending" };
+
+            headers.forEach((h, idx) => {
+              const val = values[idx] || "";
+              if (h === "entity_id" || h === "entityid") obj.entity_id = val;
+              else if (h === "website_id" || h === "websiteid")
+                obj.website_id = val;
+              else if (h === "url" || h === "website") obj.url = val;
+            });
+
+            // Add https:// if missing
+            if (obj.url && !obj.url.startsWith("http")) {
+              obj.url = "https://" + obj.url;
+            }
+
+            // If URL exists, add to sites
+            if (obj.url && obj.url.startsWith("http")) {
+              console.log("Adding site:", obj);
+              sites.push(obj);
+            }
+          }
+
+          console.log("Total sites imported:", sites.length);
+          document.getElementById("endIdx").value = Math.max(
+            0,
+            sites.length - 1,
+          );
+          renderTable();
+          updateStats();
+          save();
+          log(`Imported ${sites.length} sites`, "success");
+        };
+        reader.readAsText(file);
+      });
+
+      // Run tests
+      document.getElementById("runBtn").addEventListener("click", async () => {
+        if (sites.length === 0) {
+          log("No sites to test! Import a CSV first.", "error");
+          return;
+        }
+
+        isRunning = true;
+        shouldStop = false;
+        document.getElementById("runBtn").style.display = "none";
+        document.getElementById("pauseBtn").style.display = "inline-flex";
+
+        const start = +document.getElementById("startIdx").value;
+        const end = +document.getElementById("endIdx").value;
+        const delay = +document.getElementById("delay").value;
+        const stepDelay = +document.getElementById("stepDelay").value;
+
+        log(`Starting tests from ${start} to ${end} (step delay: ${stepDelay}ms)`, "info");
+
+        for (let i = start; i <= end && i < sites.length; i++) {
+          if (shouldStop) {
+            log("Paused by user", "error");
+            break;
+          }
+
+          currentIdx = i;
+          const site = sites[i];
+          sites[i].status = "running";
+          renderTable();
+          document
+            .getElementById(`row-${i}`)
+            ?.scrollIntoView({ block: "center" });
+
+          log(`[${i}] Testing: ${site.url}`, "info");
+
+          try {
+            const res = await fetch("http://localhost:3002/api/test", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ url: site.url, stepDelay }),
+            });
+            const data = await res.json();
+
+            if (data.steps) {
+              sites[i].steps = {};
+              data.steps.forEach((step) => {
+                const key = step.name.toLowerCase();
+                if (key.includes("navigate"))
+                  sites[i].steps.navigate = step.status.toLowerCase();
+                if (key.includes("navbar") && key.includes("click"))
+                  sites[i].steps.navbar_click = step.status.toLowerCase();
+                if (key.includes("navbar") && key.includes("modal"))
+                  sites[i].steps.navbar_modal = step.status.toLowerCase();
+                if (key.includes("close"))
+                  sites[i].steps.close_modal = step.status.toLowerCase();
+                if (key.includes("hero") && key.includes("click"))
+                  sites[i].steps.hero_click = step.status.toLowerCase();
+                if (key.includes("hero") && key.includes("modal"))
+                  sites[i].steps.hero_modal = step.status.toLowerCase();
+                if (key.includes("first"))
+                  sites[i].steps.fill_firstname = step.status.toLowerCase();
+                if (key.includes("last"))
+                  sites[i].steps.fill_lastname = step.status.toLowerCase();
+                if (key.includes("phone"))
+                  sites[i].steps.fill_phone = step.status.toLowerCase();
+                if (key.includes("submit"))
+                  sites[i].steps.submit = step.status.toLowerCase();
+              });
+            }
+
+            sites[i].status = data.overall === "SUCCESS" ? "success" : "failed";
+            const passed =
+              data.steps?.filter((s) => s.status === "SUCCESS").length || 0;
+            log(
+              `[${i}] ${data.overall} (${passed}/${data.steps?.length || 0})`,
+              data.overall === "SUCCESS" ? "success" : "error",
+            );
+          } catch (err) {
+            sites[i].status = "failed";
+            log(`[${i}] ERROR: ${err.message}`, "error");
+          }
+
+          renderTable();
+          updateStats();
+          save();
+
+          if (i < end && !shouldStop) {
+            await new Promise((r) => setTimeout(r, delay * 1000));
+          }
+        }
+
+        isRunning = false;
+        document.getElementById("runBtn").style.display = "inline-flex";
+        document.getElementById("pauseBtn").style.display = "none";
+        log("Completed", "success");
+      });
+
+      // Pause
+      document.getElementById("pauseBtn").addEventListener("click", () => {
+        shouldStop = true;
+      });
+
+      // Reset
+      document.getElementById("resetBtn").addEventListener("click", () => {
+        sites = sites.map((s) => ({ ...s, status: "pending", steps: {} }));
+        renderTable();
+        updateStats();
+        save();
+        document.getElementById("logsContent").innerHTML = "";
+        log("Reset all tests", "info");
+      });
+
+      // Remove All
+      document.getElementById("removeAllBtn").addEventListener("click", () => {
+        if (confirm("Are you sure you want to remove all sites?")) {
+          sites = [];
+          document.getElementById("startIdx").value = 0;
+          document.getElementById("endIdx").value = 0;
+          renderTable();
+          updateStats();
+          save();
+          document.getElementById("logsContent").innerHTML = "";
+          log("Removed all sites", "info");
+        }
+      });
+
+      // Export
+      document.getElementById("exportBtn").addEventListener("click", () => {
+        const headers = [
+          "entity_id",
+          "website_id",
+          "url",
+          "status",
+          "navigate",
+          "navbar_click",
+          "navbar_modal",
+          "close_modal",
+          "hero_click",
+          "hero_modal",
+          "fill_firstname",
+          "fill_lastname",
+          "fill_phone",
+          "submit",
+        ];
+        const csv = [headers.join(",")];
+        sites.forEach((s) => {
+          csv.push(
+            [
+              s.entity_id,
+              s.website_id,
+              s.url,
+              s.status,
+              s.steps?.navigate || "",
+              s.steps?.navbar_click || "",
+              s.steps?.navbar_modal || "",
+              s.steps?.close_modal || "",
+              s.steps?.hero_click || "",
+              s.steps?.hero_modal || "",
+              s.steps?.fill_firstname || "",
+              s.steps?.fill_lastname || "",
+              s.steps?.fill_phone || "",
+              s.steps?.submit || "",
+            ].join(","),
+          );
+        });
+
+        const blob = new Blob([csv.join("\n")], { type: "text/csv" });
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = `results-${new Date().toISOString().split("T")[0]}.csv`;
+        a.click();
+        log("Exported results", "success");
+      });
+    </script>
+  </body>
+</html>

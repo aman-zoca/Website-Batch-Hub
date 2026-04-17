@@ -1,0 +1,31 @@
+{
+  "name": "website-popup-tester",
+  "version": "1.0.0",
+  "description": "Automated testing tool for website popup/modal functionality",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "test": "node index.js",
+    "test:csv": "node index.js --csv",
+    "server": "node server.js",
+    "dashboard": "cd dashboard && npm run dev",
+    "start": "concurrently \"npm run server\" \"npm run dashboard\""
+  },
+  "dependencies": {
+    "concurrently": "^8.2.0",
+    "cors": "^2.8.6",
+    "csv-parse": "^5.5.0",
+    "csv-stringify": "^6.4.0",
+    "express": "^4.22.1",
+    "google-spreadsheet": "^4.1.0",
+    "googleapis": "^130.0.0",
+    "puppeteer": "^22.0.0"
+  },
+  "keywords": [
+    "testing",
+    "automation",
+    "puppeteer"
+  ],
+  "author": "",
+  "license": "ISC"
+}
