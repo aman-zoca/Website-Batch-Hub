@@ -50,11 +50,12 @@
         display: none;
       }
       .btn {
-        padding: 10px 16px;
+        padding: 6px 10px;
         border: none;
         border-radius: 6px;
         cursor: pointer;
         font-weight: 500;
+        font-size: 13px;
         display: inline-flex;
         align-items: center;
         gap: 6px;
@@ -123,7 +124,8 @@
       }
       table {
         width: 100%;
-        border-collapse: collapse;
+        border-collapse: separate;
+        border-spacing: 0;
         font-size: 13px;
       }
       th,
@@ -132,24 +134,26 @@
         text-align: left;
         border-bottom: 1px solid #e5e7eb;
         white-space: nowrap;
+        background: #fff;
       }
       th {
-        background: #f9fafb;
+        background: #f9fafb !important;
         position: sticky;
         top: 0;
+        z-index: 1;
         font-weight: 600;
         color: #374151;
       }
-      tr:hover {
+      tr:hover td {
         background: #f9fafb;
       }
-      tr.running {
+      tr.running td {
         background: #dbeafe;
       }
-      tr.success {
+      tr.success td {
         background: #dcfce7;
       }
-      tr.failed {
+      tr.failed td {
         background: #fee2e2;
       }
       .url-cell a {
@@ -166,6 +170,14 @@
       .step-failed {
         color: #dc2626;
         font-weight: 500;
+      }
+      .step-skipped {
+        color: #9ca3af;
+        font-style: italic;
+      }
+      .step-toggle {
+        cursor: pointer;
+        margin-right: 4px;
       }
       .logs {
         width: 320px;
@@ -218,53 +230,93 @@
       .action-btn:hover {
         background: #d1d5db;
       }
+      /* Sticky first 3 columns: Generate, Actions, # */
+      td:nth-child(1), th:nth-child(1) {
+        position: sticky;
+        left: 0;
+        z-index: 3;
+        background: #fff !important;
+      }
+      td:nth-child(2), th:nth-child(2) {
+        position: sticky;
+        left: 70px;
+        z-index: 3;
+        background: #fff !important;
+      }
+      td:nth-child(3), th:nth-child(3) {
+        position: sticky;
+        left: 145px;
+        z-index: 3;
+        background: #fff !important;
+        border-right: 2px solid #d1d5db;
+      }
+      /* Sticky headers: top + left corner must be highest z-index */
+      th:nth-child(1), th:nth-child(2), th:nth-child(3) {
+        z-index: 5 !important;
+        background: #f9fafb !important;
+      }
+      /* Row status colors for sticky columns */
+      tr:hover td:nth-child(1), tr:hover td:nth-child(2), tr:hover td:nth-child(3) {
+        background: #f9fafb !important;
+      }
+      tr.running td:nth-child(1), tr.running td:nth-child(2), tr.running td:nth-child(3) {
+        background: #dbeafe !important;
+      }
+      tr.success td:nth-child(1), tr.success td:nth-child(2), tr.success td:nth-child(3) {
+        background: #dcfce7 !important;
+      }
+      tr.failed td:nth-child(1), tr.failed td:nth-child(2), tr.failed td:nth-child(3) {
+        background: #fee2e2 !important;
+      }
+      .gen-btn {
+        padding: 4px 8px;
+        border: none;
+        background: #d1fae5;
+        color: #16a34a;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: bold;
+      }
+      .gen-btn:hover { background: #bbf7d0; }
+      .gen-btn.gen-running { background: #dbeafe; color: #1e40af; }
+      .gen-btn.gen-success { background: #dcfce7; color: #16a34a; }
+      .gen-btn.gen-failed { background: #fee2e2; color: #dc2626; }
     </style>
   </head>
   <body>
     <h1>Website Popup Tester</h1>
 
-    <div class="controls">
-      <label class="btn btn-purple">
-        Import CSV
-        <input type="file" id="fileInput" accept=".csv,.txt" />
-      </label>
-      <button class="btn btn-blue" id="exportBtn">Export</button>
-      <button class="btn btn-gray" id="resetBtn">Reset</button>
-      <button class="btn btn-red" id="removeAllBtn">Remove All</button>
+    <div class="controls" style="justify-content: space-between;">
+      <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+        <label class="btn btn-purple">
+          Import CSV
+          <input type="file" id="fileInput" accept=".csv,.txt" />
+        </label>
+        <button class="btn btn-blue" id="exportBtn">Export</button>
+        <button class="btn btn-gray" id="resetBtn">Reset</button>
+        <button class="btn btn-red" id="removeAllBtn">Remove All</button>
+        <input type="text" id="searchInput" placeholder="Search entity, website, url..." style="padding: 6px; border: 1px solid #ddd; border-radius: 4px; width: 180px; font-size: 12px;" oninput="filterTable()">
+        <input type="text" id="authToken" placeholder="Bearer token..." style="padding: 6px; border: 1px solid #ddd; border-radius: 4px; width: 180px; font-size: 12px;">
+      </div>
 
-      <input type="text" id="searchInput" placeholder="Search entity, website, url..." style="padding: 8px; border: 1px solid #ddd; border-radius: 4px; width: 200px;" oninput="filterTable()">
-
-      <label
-        >From: <input type="number" id="startIdx" value="0" min="0"
-      /></label>
-      <label>To: <input type="number" id="endIdx" value="0" min="0" /></label>
-      <label
-        >Delay (s):
-        <input type="number" id="delay" value="2" min="0" step="0.5"
-      /></label>
-      <label
-        >Step (ms):
-        <input type="number" id="stepDelay" value="500" min="0" step="100"
-      /></label>
-
-      <button class="btn btn-green" id="runBtn">Run</button>
-      <button class="btn btn-red" id="pauseBtn" style="display: none">
-        Pause
-      </button>
-
-      <div class="stats">
-        <span class="stat stat-total"
-          >Total: <span id="statTotal">0</span></span
-        >
-        <span class="stat stat-success"
-          >Pass: <span id="statSuccess">0</span></span
-        >
-        <span class="stat stat-failed"
-          >Fail: <span id="statFailed">0</span></span
-        >
-        <span class="stat stat-pending"
-          >Pending: <span id="statPending">0</span></span
-        >
+      <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+        <label>From: <input type="number" id="startIdx" value="0" min="0" /></label>
+        <label>To: <input type="number" id="endIdx" value="0" min="0" /></label>
+        <label>Delay (s): <input type="number" id="delay" value="2" min="0" step="0.5" /></label>
+        <label>Step (ms): <input type="number" id="stepDelay" value="500" min="0" step="100" /></label>
+        <label>Parallel: <input type="number" id="parallel" value="10" min="1" max="20" step="1" /></label>
+        <button class="btn btn-green" id="runBtn">Run</button>
+        <button class="btn btn-red" id="pauseBtn" style="display: none">Pause</button>
+        <span style="border-left: 1px solid #ddd; height: 24px;"></span>
+        <button class="btn btn-green" id="genCheckedBtn">Generate Checked</button>
+        <button class="btn btn-red" id="stopGenBtn" style="display: none">Stop Generate</button>
+        <button class="btn btn-gray" id="checkFailedBtn" title="Check all rows with failed status">Check All Failed</button>
+        <span style="border-left: 1px solid #ddd; height: 24px;"></span>
+        <span class="stat stat-total">Total: <span id="statTotal">0</span></span>
+        <span class="stat stat-success">Pass: <span id="statSuccess">0</span></span>
+        <span class="stat stat-failed">Fail: <span id="statFailed">0</span></span>
+        <span class="stat stat-pending">Pending: <span id="statPending">0</span></span>
       </div>
     </div>
 
@@ -273,22 +325,31 @@
         <table>
           <thead>
             <tr>
+              <th>Generate</th>
               <th>Actions</th>
               <th>#</th>
               <th>Status</th>
               <th>Entity ID</th>
               <th>Website ID</th>
               <th>URL</th>
-              <th>Navigate</th>
-              <th>Nav Click</th>
-              <th>Nav Modal</th>
-              <th>Close</th>
-              <th>Hero Click</th>
-              <th>Hero Modal</th>
-              <th>FirstName</th>
-              <th>LastName</th>
-              <th>Phone</th>
-              <th>Submit</th>
+              <th><input type="checkbox" class="step-toggle" data-step="navigate" checked> Navigate</th>
+              <th><input type="checkbox" class="step-toggle" data-step="navbar_click" checked> Nav Click</th>
+              <th><input type="checkbox" class="step-toggle" data-step="navbar_modal" checked> Nav Modal</th>
+              <th><input type="checkbox" class="step-toggle" data-step="close_modal" checked> Close</th>
+              <th><input type="checkbox" class="step-toggle" data-step="hero_click" checked> Hero Click</th>
+              <th><input type="checkbox" class="step-toggle" data-step="hero_modal" checked> Hero Modal</th>
+              <th><input type="checkbox" class="step-toggle" data-step="fill_firstname" checked> FirstName</th>
+              <th><input type="checkbox" class="step-toggle" data-step="fill_lastname" checked> LastName</th>
+              <th><input type="checkbox" class="step-toggle" data-step="fill_phone" checked> Phone</th>
+              <th><input type="checkbox" class="step-toggle" data-step="submit" checked> Submit</th>
+              <th><input type="checkbox" class="step-toggle" data-step="svc_page" checked> Svc Page</th>
+              <th><input type="checkbox" class="step-toggle" data-step="add_svc1" checked> Add Svc 1</th>
+              <th><input type="checkbox" class="step-toggle" data-step="svc_cart" checked> Cart</th>
+              <th><input type="checkbox" class="step-toggle" data-step="remove_svc" checked> Remove</th>
+              <th><input type="checkbox" class="step-toggle" data-step="add_svc2" checked> Add Svc 2</th>
+              <th><input type="checkbox" class="step-toggle" data-step="cat_tab1" checked> Cat Tab 1</th>
+              <th><input type="checkbox" class="step-toggle" data-step="cat_tab2" checked> Cat Tab 2</th>
+              <th><input type="checkbox" class="step-toggle" data-step="search" checked> Search</th>
             </tr>
           </thead>
           <tbody id="tableBody"></tbody>
@@ -317,8 +378,36 @@
         document.getElementById("endIdx").value = data.endIdx || 0;
         document.getElementById("delay").value = data.delay || 2;
         document.getElementById("stepDelay").value = data.stepDelay || 500;
+        document.getElementById("parallel").value = data.parallel || 10;
+        if (data.authToken) document.getElementById("authToken").value = data.authToken;
+        loadStepToggles(data.stepToggles);
         renderTable();
         updateStats();
+      }
+
+      function getEnabledSteps() {
+        const steps = [];
+        document.querySelectorAll('.step-toggle').forEach(cb => {
+          if (cb.checked) steps.push(cb.dataset.step);
+        });
+        return steps;
+      }
+
+      function getStepToggles() {
+        const toggles = {};
+        document.querySelectorAll('.step-toggle').forEach(cb => {
+          toggles[cb.dataset.step] = cb.checked;
+        });
+        return toggles;
+      }
+
+      function loadStepToggles(toggles) {
+        if (!toggles) return;
+        document.querySelectorAll('.step-toggle').forEach(cb => {
+          if (toggles[cb.dataset.step] !== undefined) {
+            cb.checked = toggles[cb.dataset.step];
+          }
+        });
       }
 
       function save() {
@@ -330,6 +419,9 @@
             endIdx: +document.getElementById("endIdx").value,
             delay: +document.getElementById("delay").value,
             stepDelay: +document.getElementById("stepDelay").value,
+            parallel: +document.getElementById("parallel").value,
+            authToken: document.getElementById("authToken").value,
+            stepToggles: getStepToggles(),
           }),
         );
       }
@@ -349,8 +441,13 @@
             (s, i) => `
         <tr id="row-${i}" class="${s.status || ""}">
           <td>
-            <button class="action-btn" onclick="copyRow(${i})" title="Copy row data">📋</button>
-            <button class="action-btn" onclick="testRow(${i})" title="Test this row">▶️</button>
+            <input type="checkbox" class="gen-check" data-gen-check="${i}" ${s.gen_checked ? 'checked' : ''} style="cursor:pointer">
+            <button class="gen-btn ${s.generate_status ? 'gen-' + s.generate_status : ''}" data-gen="${i}" title="Generate website">▶</button>
+            <span class="step-${s.generate_status || ''}" style="font-size:11px">${s.generate_status || ''}</span>
+          </td>
+          <td>
+            <button class="action-btn" data-copy="${i}" title="Copy row data">📋</button>
+            <button class="action-btn" data-test="${i}" title="Test this row">▶️</button>
           </td>
           <td>${i}</td>
           <td>${s.status || "pending"}</td>
@@ -367,6 +464,14 @@
           <td class="step-${s.steps?.fill_lastname || ""}">${s.steps?.fill_lastname || "-"}</td>
           <td class="step-${s.steps?.fill_phone || ""}">${s.steps?.fill_phone || "-"}</td>
           <td class="step-${s.steps?.submit || ""}">${s.steps?.submit || "-"}</td>
+          <td class="step-${s.steps?.svc_page || ""}">${s.steps?.svc_page || "-"}</td>
+          <td class="step-${s.steps?.add_svc1 || ""}">${s.steps?.add_svc1 || "-"}</td>
+          <td class="step-${s.steps?.svc_cart || ""}">${s.steps?.svc_cart || "-"}</td>
+          <td class="step-${s.steps?.remove_svc || ""}">${s.steps?.remove_svc || "-"}</td>
+          <td class="step-${s.steps?.add_svc2 || ""}">${s.steps?.add_svc2 || "-"}</td>
+          <td class="step-${s.steps?.cat_tab1 || ""}">${s.steps?.cat_tab1 || "-"}</td>
+          <td class="step-${s.steps?.cat_tab2 || ""}">${s.steps?.cat_tab2 || "-"}</td>
+          <td class="step-${s.steps?.search || ""}">${s.steps?.search || "-"}</td>
         </tr>
       `,
           )
@@ -390,10 +495,60 @@
           s.steps?.fill_firstname || '',
           s.steps?.fill_lastname || '',
           s.steps?.fill_phone || '',
-          s.steps?.submit || ''
+          s.steps?.submit || '',
+          s.steps?.svc_page || '',
+          s.steps?.add_svc1 || '',
+          s.steps?.svc_cart || '',
+          s.steps?.remove_svc || '',
+          s.steps?.add_svc2 || '',
+          s.steps?.cat_tab1 || '',
+          s.steps?.cat_tab2 || '',
+          s.steps?.search || ''
         ].join('\t');
         navigator.clipboard.writeText(data);
         log(`Copied row ${idx} to clipboard`, 'success');
+      }
+
+      // Generate website for a single row
+      async function generateRow(idx) {
+        const token = document.getElementById("authToken").value.trim();
+        if (!token) {
+          log('No auth token set! Paste your Bearer token first.', 'error');
+          return;
+        }
+
+        const site = sites[idx];
+        if (!site.entity_id) {
+          log(`[${idx}] No entity_id for this row`, 'error');
+          return;
+        }
+
+        sites[idx].generate_status = 'running';
+        renderTable();
+        log(`[${idx}] Generating website for entity: ${site.entity_id.slice(0, 8)}...`, 'info');
+
+        try {
+          const res = await fetch('http://localhost:3002/api/generate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ entityId: site.entity_id, token })
+          });
+          const data = await res.json();
+
+          if (data.success) {
+            sites[idx].generate_status = 'success';
+            log(`[${idx}] Generate SUCCESS`, 'success');
+          } else {
+            sites[idx].generate_status = 'failed';
+            log(`[${idx}] Generate FAILED: ${data.error || 'Unknown error'}`, 'error');
+          }
+        } catch (err) {
+          sites[idx].generate_status = 'failed';
+          log(`[${idx}] Generate ERROR: ${err.message}`, 'error');
+        }
+
+        renderTable();
+        save();
       }
 
       // Test single row
@@ -413,7 +568,7 @@
           const res = await fetch('http://localhost:3002/api/test', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ url: site.url, stepDelay })
+            body: JSON.stringify({ url: site.url, stepDelay, enabledSteps: getEnabledSteps() })
           });
           const data = await res.json();
 
@@ -431,6 +586,14 @@
               if (key.includes('last')) sites[idx].steps.fill_lastname = step.status.toLowerCase();
               if (key.includes('phone')) sites[idx].steps.fill_phone = step.status.toLowerCase();
               if (key.includes('submit')) sites[idx].steps.submit = step.status.toLowerCase();
+              if (key.includes('navigate to services') || key.includes('services page')) sites[idx].steps.svc_page = step.status.toLowerCase();
+              if (key.includes('add service') && key.includes('1')) sites[idx].steps.add_svc1 = step.status.toLowerCase();
+              if (key.includes('booking cart') || key.includes('cart appears')) sites[idx].steps.svc_cart = step.status.toLowerCase();
+              if (key.includes('remove service') || key.includes('remove')) sites[idx].steps.remove_svc = step.status.toLowerCase();
+              if (key.includes('add service') && key.includes('2')) sites[idx].steps.add_svc2 = step.status.toLowerCase();
+              if (key.includes('category tab 1') || key.includes('tab 1')) sites[idx].steps.cat_tab1 = step.status.toLowerCase();
+              if (key.includes('category tab 2') || key.includes('tab 2')) sites[idx].steps.cat_tab2 = step.status.toLowerCase();
+              if (key.includes('search')) sites[idx].steps.search = step.status.toLowerCase();
             });
           }
 
@@ -547,77 +710,102 @@
         const end = +document.getElementById("endIdx").value;
         const delay = +document.getElementById("delay").value;
         const stepDelay = +document.getElementById("stepDelay").value;
+        const parallel = +document.getElementById("parallel").value || 10;
 
-        log(`Starting tests from ${start} to ${end} (step delay: ${stepDelay}ms)`, "info");
+        log(`Starting tests from ${start} to ${end} (parallel: ${parallel}, step delay: ${stepDelay}ms)`, "info");
 
-        for (let i = start; i <= end && i < sites.length; i++) {
+        function applyResult(i, data) {
+          if (data.steps) {
+            sites[i].steps = {};
+            data.steps.forEach((step) => {
+              const key = step.name.toLowerCase();
+              if (key.includes("navigate"))
+                sites[i].steps.navigate = step.status.toLowerCase();
+              if (key.includes("navbar") && key.includes("click"))
+                sites[i].steps.navbar_click = step.status.toLowerCase();
+              if (key.includes("navbar") && key.includes("modal"))
+                sites[i].steps.navbar_modal = step.status.toLowerCase();
+              if (key.includes("close"))
+                sites[i].steps.close_modal = step.status.toLowerCase();
+              if (key.includes("hero") && key.includes("click"))
+                sites[i].steps.hero_click = step.status.toLowerCase();
+              if (key.includes("hero") && key.includes("modal"))
+                sites[i].steps.hero_modal = step.status.toLowerCase();
+              if (key.includes("first"))
+                sites[i].steps.fill_firstname = step.status.toLowerCase();
+              if (key.includes("last"))
+                sites[i].steps.fill_lastname = step.status.toLowerCase();
+              if (key.includes("phone"))
+                sites[i].steps.fill_phone = step.status.toLowerCase();
+              if (key.includes("submit"))
+                sites[i].steps.submit = step.status.toLowerCase();
+              if (key.includes('navigate to services') || key.includes('services page')) sites[i].steps.svc_page = step.status.toLowerCase();
+              if (key.includes('add service') && key.includes('1')) sites[i].steps.add_svc1 = step.status.toLowerCase();
+              if (key.includes('booking cart') || key.includes('cart appears')) sites[i].steps.svc_cart = step.status.toLowerCase();
+              if (key.includes('remove service') || key.includes('remove')) sites[i].steps.remove_svc = step.status.toLowerCase();
+              if (key.includes('add service') && key.includes('2')) sites[i].steps.add_svc2 = step.status.toLowerCase();
+              if (key.includes('category tab 1') || key.includes('tab 1')) sites[i].steps.cat_tab1 = step.status.toLowerCase();
+              if (key.includes('category tab 2') || key.includes('tab 2')) sites[i].steps.cat_tab2 = step.status.toLowerCase();
+              if (key.includes('search')) sites[i].steps.search = step.status.toLowerCase();
+            });
+          }
+          sites[i].status = data.overall === "SUCCESS" ? "success" : "failed";
+          const passed = data.steps?.filter((s) => s.status === "SUCCESS").length || 0;
+          log(
+            `[${i}] ${data.overall} (${passed}/${data.steps?.length || 0})`,
+            data.overall === "SUCCESS" ? "success" : "error",
+          );
+        }
+
+        // Process in parallel batches
+        for (let batchStart = start; batchStart <= end && batchStart < sites.length; batchStart += parallel) {
           if (shouldStop) {
             log("Paused by user", "error");
             break;
           }
 
-          currentIdx = i;
-          const site = sites[i];
-          sites[i].status = "running";
-          renderTable();
-          document
-            .getElementById(`row-${i}`)
-            ?.scrollIntoView({ block: "center" });
+          const batchEnd = Math.min(batchStart + parallel - 1, end, sites.length - 1);
+          const batchIndices = [];
+          for (let i = batchStart; i <= batchEnd; i++) {
+            batchIndices.push(i);
+          }
 
-          log(`[${i}] Testing: ${site.url}`, "info");
+          // Mark all in batch as running
+          const batchUrls = [];
+          batchIndices.forEach((i) => {
+            sites[i].status = "running";
+            batchUrls.push(sites[i].url);
+            log(`[${i}] Testing: ${sites[i].url}`, "info");
+          });
+          renderTable();
+          document.getElementById(`row-${batchIndices[0]}`)?.scrollIntoView({ block: "center" });
 
           try {
-            const res = await fetch("http://localhost:3002/api/test", {
+            const res = await fetch("http://localhost:3002/api/test-batch", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ url: site.url, stepDelay }),
+              body: JSON.stringify({ urls: batchUrls, stepDelay, enabledSteps: getEnabledSteps() }),
             });
             const data = await res.json();
 
-            if (data.steps) {
-              sites[i].steps = {};
-              data.steps.forEach((step) => {
-                const key = step.name.toLowerCase();
-                if (key.includes("navigate"))
-                  sites[i].steps.navigate = step.status.toLowerCase();
-                if (key.includes("navbar") && key.includes("click"))
-                  sites[i].steps.navbar_click = step.status.toLowerCase();
-                if (key.includes("navbar") && key.includes("modal"))
-                  sites[i].steps.navbar_modal = step.status.toLowerCase();
-                if (key.includes("close"))
-                  sites[i].steps.close_modal = step.status.toLowerCase();
-                if (key.includes("hero") && key.includes("click"))
-                  sites[i].steps.hero_click = step.status.toLowerCase();
-                if (key.includes("hero") && key.includes("modal"))
-                  sites[i].steps.hero_modal = step.status.toLowerCase();
-                if (key.includes("first"))
-                  sites[i].steps.fill_firstname = step.status.toLowerCase();
-                if (key.includes("last"))
-                  sites[i].steps.fill_lastname = step.status.toLowerCase();
-                if (key.includes("phone"))
-                  sites[i].steps.fill_phone = step.status.toLowerCase();
-                if (key.includes("submit"))
-                  sites[i].steps.submit = step.status.toLowerCase();
+            if (data.results) {
+              data.results.forEach((result, idx) => {
+                const i = batchIndices[idx];
+                applyResult(i, result);
               });
             }
-
-            sites[i].status = data.overall === "SUCCESS" ? "success" : "failed";
-            const passed =
-              data.steps?.filter((s) => s.status === "SUCCESS").length || 0;
-            log(
-              `[${i}] ${data.overall} (${passed}/${data.steps?.length || 0})`,
-              data.overall === "SUCCESS" ? "success" : "error",
-            );
           } catch (err) {
-            sites[i].status = "failed";
-            log(`[${i}] ERROR: ${err.message}`, "error");
+            batchIndices.forEach((i) => {
+              sites[i].status = "failed";
+              log(`[${i}] ERROR: ${err.message}`, "error");
+            });
           }
 
           renderTable();
           updateStats();
           save();
 
-          if (i < end && !shouldStop) {
+          if (batchStart + parallel <= end && !shouldStop) {
             await new Promise((r) => setTimeout(r, delay * 1000));
           }
         }
@@ -674,6 +862,14 @@
           "fill_lastname",
           "fill_phone",
           "submit",
+          "svc_page",
+          "add_svc1",
+          "svc_cart",
+          "remove_svc",
+          "add_svc2",
+          "cat_tab1",
+          "cat_tab2",
+          "search",
         ];
         const csv = [headers.join(",")];
         sites.forEach((s) => {
@@ -693,6 +889,14 @@
               s.steps?.fill_lastname || "",
               s.steps?.fill_phone || "",
               s.steps?.submit || "",
+              s.steps?.svc_page || "",
+              s.steps?.add_svc1 || "",
+              s.steps?.svc_cart || "",
+              s.steps?.remove_svc || "",
+              s.steps?.add_svc2 || "",
+              s.steps?.cat_tab1 || "",
+              s.steps?.cat_tab2 || "",
+              s.steps?.search || "",
             ].join(","),
           );
         });
@@ -703,6 +907,109 @@
         a.download = `results-${new Date().toISOString().split("T")[0]}.csv`;
         a.click();
         log("Exported results", "success");
+      });
+
+      // Event delegation for table buttons (survives re-renders)
+      document.getElementById("tableBody").addEventListener("click", (e) => {
+        // Checkbox toggle
+        const checkbox = e.target.closest("[data-gen-check]");
+        if (checkbox) {
+          const idx = +checkbox.dataset.genCheck;
+          sites[idx].gen_checked = checkbox.checked;
+          return;
+        }
+        const genBtn = e.target.closest("[data-gen]");
+        if (genBtn) {
+          generateRow(+genBtn.dataset.gen);
+          return;
+        }
+        const copyBtn = e.target.closest("[data-copy]");
+        if (copyBtn) {
+          copyRow(+copyBtn.dataset.copy);
+          return;
+        }
+        const testBtn = e.target.closest("[data-test]");
+        if (testBtn) {
+          testRow(+testBtn.dataset.test);
+          return;
+        }
+      });
+
+      // Check All Failed — checks boxes for rows where test status is 'failed' OR generate_status is 'failed'
+      document.getElementById("checkFailedBtn").addEventListener("click", () => {
+        let count = 0;
+        sites.forEach((s) => {
+          if (s.status === 'failed' || s.generate_status === 'failed') {
+            s.gen_checked = true;
+            count++;
+          }
+        });
+        renderTable();
+        log(`Checked ${count} failed rows for generation`, 'info');
+      });
+
+      // Generate Checked — runs generate one by one with 50s delay
+      let genRunning = false;
+      let genShouldStop = false;
+
+      document.getElementById("genCheckedBtn").addEventListener("click", async () => {
+        const token = document.getElementById("authToken").value.trim();
+        if (!token) {
+          log('No auth token set! Paste your Bearer token first.', 'error');
+          return;
+        }
+
+        const checkedIdxs = [];
+        sites.forEach((s, i) => {
+          if (s.gen_checked && s.entity_id) checkedIdxs.push(i);
+        });
+
+        if (checkedIdxs.length === 0) {
+          log('No rows checked for generation!', 'error');
+          return;
+        }
+
+        genRunning = true;
+        genShouldStop = false;
+        document.getElementById("genCheckedBtn").style.display = "none";
+        document.getElementById("stopGenBtn").style.display = "inline-flex";
+
+        log(`Starting batch generate for ${checkedIdxs.length} rows (50s between each)`, 'info');
+
+        for (let j = 0; j < checkedIdxs.length; j++) {
+          if (genShouldStop) {
+            log('Batch generate stopped by user', 'error');
+            break;
+          }
+
+          const idx = checkedIdxs[j];
+          log(`[${idx}] Generating (${j + 1}/${checkedIdxs.length})...`, 'info');
+          await generateRow(idx);
+
+          // Wait 50s before next, unless it's the last one
+          if (j < checkedIdxs.length - 1 && !genShouldStop) {
+            log(`Waiting 50s before next generate...`, 'info');
+            await new Promise(r => setTimeout(r, 50000));
+          }
+        }
+
+        genRunning = false;
+        document.getElementById("genCheckedBtn").style.display = "inline-flex";
+        document.getElementById("stopGenBtn").style.display = "none";
+        log('Batch generate completed', 'success');
+      });
+
+      // Stop Generate
+      document.getElementById("stopGenBtn").addEventListener("click", () => {
+        genShouldStop = true;
+      });
+
+      // Save token on change
+      document.getElementById("authToken").addEventListener("input", () => save());
+
+      // Save step toggles on change
+      document.querySelectorAll('.step-toggle').forEach(cb => {
+        cb.addEventListener('change', () => save());
       });
     </script>
   </body>
