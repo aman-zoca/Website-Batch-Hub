@@ -298,6 +298,9 @@
         <button class="btn btn-red" id="removeAllBtn">Remove All</button>
         <input type="text" id="searchInput" placeholder="Search entity, website, url..." style="padding: 6px; border: 1px solid #ddd; border-radius: 4px; width: 180px; font-size: 12px;" oninput="filterTable()">
         <input type="text" id="authToken" placeholder="Bearer token..." style="padding: 6px; border: 1px solid #ddd; border-radius: 4px; width: 180px; font-size: 12px;">
+        <span style="border-left: 1px solid #ddd; height: 24px;"></span>
+        <button class="btn btn-blue" id="querySchedulingBtn" title="Copy scheduling website query to clipboard">Scheduling Query</button>
+        <button class="btn btn-blue" id="queryWebsiteBtn" title="Copy normal website query to clipboard">Website Query</button>
       </div>
 
       <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
@@ -1014,6 +1017,45 @@
       // Save step toggles on change
       document.querySelectorAll('.step-toggle').forEach(cb => {
         cb.addEventListener('change', () => save());
+      });
+
+      // SQL Query buttons
+      document.getElementById("querySchedulingBtn").addEventListener("click", () => {
+        const sql = `SELECT ee.entity_id, ww.website_id, ww.url
+FROM entities.entities ee
+JOIN entities.product_entities pe
+    ON pe.entity_id = ee.entity_id
+    AND pe.product_id = 10
+JOIN entities.product_entities pe_web
+    ON pe_web.entity_id = ee.entity_id
+    AND pe_web.product_id = 1
+JOIN website.websites ww
+    ON ww.website_id = pe_web.id::uuid
+WHERE ww.url NOT ILIKE '%zoca.ai%'
+  AND ee.is_test = false
+  AND ee.is_active = true
+  AND ww.pipeline_version = 'v2'
+  AND ee.entity_id NOT IN (
+      'c256c9dd-04f8-44c5-a4c8-373b37545a9d',
+      '6802835b-9ac8-468f-bf9c-04eb43afb331'
+  );`;
+        navigator.clipboard.writeText(sql);
+        log('Scheduling query copied to clipboard', 'success');
+      });
+
+      document.getElementById("queryWebsiteBtn").addEventListener("click", () => {
+        const sql = `SELECT ee.entity_id, ww.website_id, ww.url
+FROM entities.entities AS ee
+JOIN entities.product_entities AS pe
+    ON ee.entity_id = pe.entity_id
+JOIN website.websites AS ww
+    ON ww.website_id::text = pe.id
+WHERE ww.url NOT ILIKE '%zoca.ai%'
+  AND ee.is_test IS false
+  AND ee.is_active IS true
+  AND ww.pipeline_version = 'v2';`;
+        navigator.clipboard.writeText(sql);
+        log('Website query copied to clipboard', 'success');
       });
     </script>
   </body>
