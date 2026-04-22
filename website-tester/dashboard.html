@@ -309,6 +309,7 @@
         <button class="btn btn-green" id="runBtn">Run</button>
         <button class="btn btn-red" id="pauseBtn" style="display: none">Pause</button>
         <span style="border-left: 1px solid #ddd; height: 24px;"></span>
+        <label>Gen (s): <input type="number" id="genDelay" value="50" min="0" step="5" /></label>
         <button class="btn btn-green" id="genCheckedBtn">Generate Checked</button>
         <button class="btn btn-red" id="stopGenBtn" style="display: none">Stop Generate</button>
         <button class="btn btn-gray" id="checkFailedBtn" title="Check all rows with failed status">Check All Failed</button>
@@ -380,6 +381,7 @@
         document.getElementById("stepDelay").value = data.stepDelay || 500;
         document.getElementById("parallel").value = data.parallel || 10;
         if (data.authToken) document.getElementById("authToken").value = data.authToken;
+        if (data.genDelay) document.getElementById("genDelay").value = data.genDelay;
         loadStepToggles(data.stepToggles);
         renderTable();
         updateStats();
@@ -421,6 +423,7 @@
             stepDelay: +document.getElementById("stepDelay").value,
             parallel: +document.getElementById("parallel").value,
             authToken: document.getElementById("authToken").value,
+            genDelay: +document.getElementById("genDelay").value,
             stepToggles: getStepToggles(),
           }),
         );
@@ -989,7 +992,8 @@
           // Wait 50s before next, unless it's the last one
           if (j < checkedIdxs.length - 1 && !genShouldStop) {
             log(`Waiting 50s before next generate...`, 'info');
-            await new Promise(r => setTimeout(r, 50000));
+            const genDelaySec = +document.getElementById("genDelay").value || 50;
+            await new Promise(r => setTimeout(r, genDelaySec * 1000));
           }
         }
 
