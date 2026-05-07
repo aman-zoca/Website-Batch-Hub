@@ -282,12 +282,53 @@
       .gen-btn.gen-running { background: #dbeafe; color: #1e40af; }
       .gen-btn.gen-success { background: #dcfce7; color: #16a34a; }
       .gen-btn.gen-failed { background: #fee2e2; color: #dc2626; }
+      .control-section {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        flex-wrap: wrap;
+        padding: 8px 12px;
+        border-radius: 6px;
+        position: relative;
+      }
+      .control-section label {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: #555;
+      }
+      .section-label {
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        padding: 2px 8px;
+        border-radius: 4px;
+        margin-right: 4px;
+      }
+      .control-section-blue {
+        background: #eff6ff;
+        border: 1px solid #bfdbfe;
+      }
+      .section-label-blue {
+        background: #3b82f6;
+        color: #fff;
+      }
+      .control-section-amber {
+        background: #fffbeb;
+        border: 1px solid #fde68a;
+      }
+      .section-label-amber {
+        background: #f59e0b;
+        color: #fff;
+      }
     </style>
   </head>
   <body>
     <h1>Website Popup Tester</h1>
 
-    <div class="controls" style="justify-content: space-between;">
+    <div class="controls" style="flex-direction: column; gap: 10px;">
+      <!-- Top bar: general controls + stats -->
       <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
         <label class="btn btn-purple">
           Import CSV
@@ -308,19 +349,32 @@
         <span class="stat stat-pending">Pending: <span id="statPending">0</span></span>
       </div>
 
-      <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
-        <label>From: <input type="number" id="startIdx" value="0" min="0" /></label>
-        <label>To: <input type="number" id="endIdx" value="0" min="0" /></label>
-        <label>Delay (s): <input type="number" id="delay" value="2" min="0" step="0.5" /></label>
-        <label>Step (ms): <input type="number" id="stepDelay" value="500" min="0" step="100" /></label>
-        <label>Parallel: <input type="number" id="parallel" value="10" min="1" max="20" step="1" /></label>
-        <button class="btn btn-green" id="runBtn">Run</button>
-        <button class="btn btn-red" id="pauseBtn" style="display: none">Pause</button>
-        <span style="border-left: 1px solid #ddd; height: 24px;"></span>
-        <label>Gen (s): <input type="number" id="genDelay" value="50" min="0" step="5" /></label>
-        <button class="btn btn-green" id="genCheckedBtn">Generate Checked</button>
-        <button class="btn btn-red" id="stopGenBtn" style="display: none">Stop Generate</button>
-        <button class="btn btn-gray" id="checkFailedBtn" title="Check all rows with failed status">Check All Failed</button>
+      <!-- Script + Generation sections side by side -->
+      <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+        <!-- Script Testing section -->
+        <div class="control-section control-section-blue">
+          <span class="section-label section-label-blue">Script</span>
+          <label>From: <input type="number" id="startIdx" value="0" min="0" /></label>
+          <label>To: <input type="number" id="endIdx" value="0" min="0" /></label>
+          <label>Delay (s): <input type="number" id="delay" value="2" min="0" step="0.5" /></label>
+          <label>Step (ms): <input type="number" id="stepDelay" value="500" min="0" step="100" /></label>
+          <label>Parallel: <input type="number" id="parallel" value="10" min="1" max="20" step="1" /></label>
+          <button class="btn btn-green" id="runBtn">Run</button>
+          <button class="btn btn-red" id="pauseBtn" style="display: none">Pause</button>
+        </div>
+
+        <!-- Generation section -->
+        <div class="control-section control-section-amber">
+          <span class="section-label section-label-amber">Generation</span>
+          <label>Delay (s): <input type="number" id="genDelay" value="50" min="0" step="5" /></label>
+          <label>From: <input type="number" id="genFrom" value="0" min="0" /></label>
+          <label>To: <input type="number" id="genTo" value="0" min="0" /></label>
+          <button class="btn btn-green" id="genRangeBtn">Generate</button>
+          <button class="btn btn-green" id="genCheckedBtn">Generate Checked</button>
+          <button class="btn btn-red" id="pauseGenBtn" style="display: none">Pause</button>
+          <button class="btn btn-gray" id="checkAllBtn" title="Check all rows for generation">Check All</button>
+          <button class="btn btn-gray" id="checkFailedBtn" title="Check all rows with failed status">Check Failed</button>
+        </div>
       </div>
     </div>
 
@@ -385,6 +439,8 @@
         document.getElementById("parallel").value = data.parallel || 10;
         if (data.authToken) document.getElementById("authToken").value = data.authToken;
         if (data.genDelay) document.getElementById("genDelay").value = data.genDelay;
+        if (data.genFrom !== undefined) document.getElementById("genFrom").value = data.genFrom;
+        if (data.genTo !== undefined) document.getElementById("genTo").value = data.genTo;
         loadStepToggles(data.stepToggles);
         renderTable();
         updateStats();
@@ -427,6 +483,8 @@
             parallel: +document.getElementById("parallel").value,
             authToken: document.getElementById("authToken").value,
             genDelay: +document.getElementById("genDelay").value,
+            genFrom: +document.getElementById("genFrom").value,
+            genTo: +document.getElementById("genTo").value,
             stepToggles: getStepToggles(),
           }),
         );
@@ -559,10 +617,6 @@
 
       // Test single row
       async function testRow(idx) {
-        if (isRunning) {
-          log('Test already running!', 'error');
-          return;
-        }
 
         const site = sites[idx];
         sites[idx].status = 'running';
@@ -689,6 +743,10 @@
 
           console.log("Total sites imported:", sites.length);
           document.getElementById("endIdx").value = Math.max(
+            0,
+            sites.length - 1,
+          );
+          document.getElementById("genTo").value = Math.max(
             0,
             sites.length - 1,
           );
@@ -941,6 +999,13 @@
         }
       });
 
+      // Check All — checks all generation checkboxes
+      document.getElementById("checkAllBtn").addEventListener("click", () => {
+        sites.forEach((s) => { s.gen_checked = true; });
+        renderTable();
+        log(`Checked all ${sites.length} rows for generation`, 'info');
+      });
+
       // Check All Failed — checks boxes for rows where test status is 'failed' OR generate_status is 'failed'
       document.getElementById("checkFailedBtn").addEventListener("click", () => {
         let count = 0;
@@ -954,10 +1019,74 @@
         log(`Checked ${count} failed rows for generation`, 'info');
       });
 
-      // Generate Checked — runs generate one by one with 50s delay
+      // Generation state
       let genRunning = false;
       let genShouldStop = false;
 
+      function showGenRunning() {
+        document.getElementById("genRangeBtn").style.display = "none";
+        document.getElementById("genCheckedBtn").style.display = "none";
+        document.getElementById("pauseGenBtn").style.display = "inline-flex";
+      }
+
+      function showGenStopped() {
+        document.getElementById("genRangeBtn").style.display = "inline-flex";
+        document.getElementById("genCheckedBtn").style.display = "inline-flex";
+        document.getElementById("pauseGenBtn").style.display = "none";
+      }
+
+      // Generate Range — generates rows from genFrom to genTo
+      document.getElementById("genRangeBtn").addEventListener("click", async () => {
+        const token = document.getElementById("authToken").value.trim();
+        if (!token) {
+          log('No auth token set! Paste your Bearer token first.', 'error');
+          return;
+        }
+
+        const from = +document.getElementById("genFrom").value;
+        const to = +document.getElementById("genTo").value;
+
+        if (from > to || from >= sites.length) {
+          log('Invalid Gen From/To range!', 'error');
+          return;
+        }
+
+        const end = Math.min(to, sites.length - 1);
+        const total = end - from + 1;
+
+        genRunning = true;
+        genShouldStop = false;
+        showGenRunning();
+
+        const genDelaySec = +document.getElementById("genDelay").value || 50;
+        log(`Starting generate for rows ${from}-${end} (${total} rows, ${genDelaySec}s delay)`, 'info');
+
+        for (let i = from; i <= end; i++) {
+          if (genShouldStop) {
+            log('Generation paused by user', 'error');
+            break;
+          }
+
+          if (!sites[i].entity_id) {
+            log(`[${i}] Skipping — no entity_id`, 'info');
+            continue;
+          }
+
+          log(`[${i}] Generating (${i - from + 1}/${total})...`, 'info');
+          await generateRow(i);
+
+          if (i < end && !genShouldStop) {
+            log(`Waiting ${genDelaySec}s before next generate...`, 'info');
+            await new Promise(r => setTimeout(r, genDelaySec * 1000));
+          }
+        }
+
+        genRunning = false;
+        showGenStopped();
+        log('Generate range completed', 'success');
+      });
+
+      // Generate Checked — runs generate one by one with delay
       document.getElementById("genCheckedBtn").addEventListener("click", async () => {
         const token = document.getElementById("authToken").value.trim();
         if (!token) {
@@ -977,14 +1106,14 @@
 
         genRunning = true;
         genShouldStop = false;
-        document.getElementById("genCheckedBtn").style.display = "none";
-        document.getElementById("stopGenBtn").style.display = "inline-flex";
+        showGenRunning();
 
-        log(`Starting batch generate for ${checkedIdxs.length} rows (50s between each)`, 'info');
+        const genDelaySec = +document.getElementById("genDelay").value || 50;
+        log(`Starting batch generate for ${checkedIdxs.length} checked rows (${genDelaySec}s delay)`, 'info');
 
         for (let j = 0; j < checkedIdxs.length; j++) {
           if (genShouldStop) {
-            log('Batch generate stopped by user', 'error');
+            log('Generation paused by user', 'error');
             break;
           }
 
@@ -992,22 +1121,19 @@
           log(`[${idx}] Generating (${j + 1}/${checkedIdxs.length})...`, 'info');
           await generateRow(idx);
 
-          // Wait 50s before next, unless it's the last one
           if (j < checkedIdxs.length - 1 && !genShouldStop) {
-            log(`Waiting 50s before next generate...`, 'info');
-            const genDelaySec = +document.getElementById("genDelay").value || 50;
+            log(`Waiting ${genDelaySec}s before next generate...`, 'info');
             await new Promise(r => setTimeout(r, genDelaySec * 1000));
           }
         }
 
         genRunning = false;
-        document.getElementById("genCheckedBtn").style.display = "inline-flex";
-        document.getElementById("stopGenBtn").style.display = "none";
+        showGenStopped();
         log('Batch generate completed', 'success');
       });
 
-      // Stop Generate
-      document.getElementById("stopGenBtn").addEventListener("click", () => {
+      // Pause Generate
+      document.getElementById("pauseGenBtn").addEventListener("click", () => {
         genShouldStop = true;
       });
 
