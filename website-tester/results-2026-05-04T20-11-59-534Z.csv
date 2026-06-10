@@ -1,0 +1,2 @@
+url,timestamp,overall,error,Navigate_to_website,Click_navbar_Book_Appointment,Verify_booking_modal_opens__navbar_,Close_booking_modal,Click_hero_Book_Appointment,Verify_booking_modal_opens__hero_,Fill_first_name,Fill_last_name,Fill_phone_number,Submit_form
+https://priyamakeoverla4.mononest.dev/,2026-05-04T20:11:30.332Z,SUCCESS,,SUCCESS,SUCCESS,SUCCESS,SUCCESS,SUCCESS,SUCCESS,SUCCESS,SUCCESS,SUCCESS,SUCCESS

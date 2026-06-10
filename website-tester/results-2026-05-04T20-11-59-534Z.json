@@ -1,0 +1,69 @@
+[
+  {
+    "url": "https://priyamakeoverla4.mononest.dev/",
+    "timestamp": "2026-05-04T20:11:30.332Z",
+    "steps": [
+      {
+        "name": "Navigate to website",
+        "status": "SUCCESS",
+        "startTime": "2026-05-04T20:11:30.338Z",
+        "endTime": "2026-05-04T20:11:35.520Z"
+      },
+      {
+        "name": "Click navbar Book Appointment",
+        "status": "SUCCESS",
+        "startTime": "2026-05-04T20:11:35.520Z",
+        "endTime": "2026-05-04T20:11:38.280Z"
+      },
+      {
+        "name": "Verify booking modal opens (navbar)",
+        "status": "SUCCESS",
+        "startTime": "2026-05-04T20:11:38.280Z",
+        "endTime": "2026-05-04T20:11:39.394Z"
+      },
+      {
+        "name": "Close booking modal",
+        "status": "SUCCESS",
+        "startTime": "2026-05-04T20:11:39.394Z",
+        "endTime": "2026-05-04T20:11:43.133Z"
+      },
+      {
+        "name": "Click hero Book Appointment",
+        "status": "SUCCESS",
+        "startTime": "2026-05-04T20:11:44.241Z",
+        "endTime": "2026-05-04T20:11:46.171Z"
+      },
+      {
+        "name": "Verify booking modal opens (hero)",
+        "status": "SUCCESS",
+        "startTime": "2026-05-04T20:11:46.171Z",
+        "endTime": "2026-05-04T20:11:47.286Z"
+      },
+      {
+        "name": "Fill first name",
+        "status": "SUCCESS",
+        "startTime": "2026-05-04T20:11:47.286Z",
+        "endTime": "2026-05-04T20:11:49.618Z"
+      },
+      {
+        "name": "Fill last name",
+        "status": "SUCCESS",
+        "startTime": "2026-05-04T20:11:49.618Z",
+        "endTime": "2026-05-04T20:11:51.697Z"
+      },
+      {
+        "name": "Fill phone number",
+        "status": "SUCCESS",
+        "startTime": "2026-05-04T20:11:51.697Z",
+        "endTime": "2026-05-04T20:11:55.559Z"
+      },
+      {
+        "name": "Submit form",
+        "status": "SUCCESS",
+        "startTime": "2026-05-04T20:11:55.559Z",
+        "endTime": "2026-05-04T20:11:59.534Z"
+      }
+    ],
+    "overall": "SUCCESS"
+  }
+]

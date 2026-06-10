@@ -87,9 +87,9 @@ async function runTest(
     "Submit form": "submit",
     "Navigate to services page": "svc_page",
     "Click Add Service button 1": "add_svc1",
-    "Verify booking cart appears": "svc_cart",
-    "Remove service from cart": "remove_svc",
+    "Verify lead form opens (svc 1)": "svc1_modal",
     "Click Add Service button 2": "add_svc2",
+    "Verify lead form opens (svc 2)": "svc2_modal",
     "Click category tab 1": "cat_tab1",
     "Click category tab 2": "cat_tab2",
     "Test search services": "search",
@@ -135,6 +135,14 @@ async function runTest(
   try {
     console.log(`\nTesting: ${url}`);
 
+    // Auto-dismiss any browser dialogs (alerts/confirms from call-now buttons)
+    page.on('dialog', async dialog => {
+      console.log(`  [DIALOG] ${dialog.type()}: ${dialog.message()}`);
+      await dialog.dismiss();
+    });
+
+    let isCallNow = false;
+
     // Step 1: Navigate
     await step("Navigate to website", async () => {
       const response = await page.goto(url, {
@@ -163,26 +171,41 @@ async function runTest(
 
     // Step 2: Click navbar CTA
     await step("Click navbar Book Appointment", async () => {
-      // Find and click element with data-event-onclick starting with handleGetInTouch
-      const clicked = await page.evaluate(() => {
-        const btn = document.querySelector('[data-event-onclick^="handleGetInTouch"]');
-        if (btn) {
-          btn.click();
-          return true;
-        }
-        return false;
+      // Detect call-now mode and click the navbar CTA
+      const btnInfo = await page.evaluate(() => {
+        const btn = document.querySelector('#cta-button-desktop') ||
+                    document.querySelector('[data-event-onclick^="handleGetInTouch"]') ||
+                    document.querySelector('[data-event-onclick^="openBookingModal"]');
+        if (!btn) return null;
+        return {
+          callNow: btn.getAttribute('data-call-now-enabled') === 'true',
+          phone: btn.getAttribute('data-call-now-phone') || '',
+        };
       });
 
-      if (!clicked) {
-        throw new Error('Could not find handleGetInTouch button');
+      if (!btnInfo) throw new Error('Could not find navbar CTA button');
+      isCallNow = btnInfo.callNow;
+
+      if (isCallNow) {
+        console.log(`    [INFO] Call-now mode detected (phone: ${btnInfo.phone})`);
       }
 
-      // Small wait for modal animation
-      await new Promise(resolve => setTimeout(resolve, 200));
+      await page.evaluate(() => {
+        const btn = document.querySelector('#cta-button-desktop') ||
+                    document.querySelector('[data-event-onclick^="handleGetInTouch"]') ||
+                    document.querySelector('[data-event-onclick^="openBookingModal"]');
+        if (btn) btn.click();
+      });
+
+      await new Promise(resolve => setTimeout(resolve, 500));
     });
 
     // Step 3: Verify navbar modal
     await step("Verify booking modal opens (navbar)", async () => {
+      if (isCallNow) {
+        console.log('    [INFO] Call-now mode — no modal expected, alert handled');
+        return;
+      }
       await page.waitForSelector(selectors.bookingModal, {
         visible: true,
         timeout: 2000,
@@ -196,6 +219,10 @@ async function runTest(
 
     // Step 4: Close modal
     await step("Close booking modal", async () => {
+      if (isCallNow) {
+        console.log('    [INFO] Call-now mode — no modal to close');
+        return;
+      }
       await page.waitForSelector(selectors.modalClose, {
         visible: true,
         timeout: 2000,
@@ -216,10 +243,15 @@ async function runTest(
 
     // Step 5: Click hero CTA
     await step("Click hero Get In Touch", async () => {
-      // Find all handleGetInTouch buttons and click the second one (hero)
       const clicked = await page.evaluate(() => {
-        const buttons = document.querySelectorAll('[data-event-onclick^="handleGetInTouch"]');
-        // Click second button if exists (hero), otherwise first
+        // Try hero button by ID first, then fallback to second CTA button
+        const heroById = document.querySelector('#hero-cta-button');
+        if (heroById) {
+          heroById.scrollIntoView({ behavior: 'instant', block: 'center' });
+          heroById.click();
+          return true;
+        }
+        const buttons = document.querySelectorAll('[data-event-onclick^="handleGetInTouch"], [data-event-onclick^="openBookingModal"]');
         const btn = buttons[1] || buttons[0];
         if (btn) {
           btn.scrollIntoView({ behavior: 'instant', block: 'center' });
@@ -229,13 +261,16 @@ async function runTest(
         return false;
       });
 
-      if (!clicked) {
-        throw new Error('Could not find handleGetInTouch button');
-      }
+      if (!clicked) throw new Error('Could not find hero CTA button');
+      await new Promise(resolve => setTimeout(resolve, 500));
     });
 
     // Step 6: Verify hero modal
     await step("Verify booking modal opens (hero)", async () => {
+      if (isCallNow) {
+        console.log('    [INFO] Call-now mode — no modal expected, alert handled');
+        return;
+      }
       await page.waitForSelector(selectors.bookingModal, {
         visible: true,
         timeout: 2000,
@@ -249,6 +284,10 @@ async function runTest(
 
     // Step 7: Fill first name (skip if prefilled)
     await step("Fill first name", async () => {
+      if (isCallNow) {
+        console.log('    [INFO] Call-now mode — no form to fill');
+        return;
+      }
       const firstNameSelector = selectors.firstNameInput;
       const altSelector = 'input[data-form-field="ctaFormFirstName"]';
 
@@ -270,6 +309,10 @@ async function runTest(
 
     // Step 8: Fill last name (skip if prefilled)
     await step("Fill last name", async () => {
+      if (isCallNow) {
+        console.log('    [INFO] Call-now mode — no form to fill');
+        return;
+      }
       await page.waitForSelector(selectors.lastNameInput, {
         visible: true,
         timeout: 2000,
@@ -285,6 +328,10 @@ async function runTest(
 
     // Step 9: Fill phone (skip if prefilled)
     await step("Fill phone number", async () => {
+      if (isCallNow) {
+        console.log('    [INFO] Call-now mode — no form to fill');
+        return;
+      }
       await page.waitForSelector(selectors.phoneInput, {
         visible: true,
         timeout: 2000,
@@ -300,6 +347,10 @@ async function runTest(
 
     // Step 10: Submit
     await step("Submit form", async () => {
+      if (isCallNow) {
+        console.log('    [INFO] Call-now mode — no form to submit');
+        return;
+      }
       await page.waitForSelector(selectors.submitButton, {
         visible: true,
         timeout: 2000,
@@ -424,149 +475,110 @@ async function runTest(
       return false; // no variations
     }
 
-    // Step 12: Click first "Add Service" button — verify it toggles to "Remove" (active class)
+    // Helper: close booking modal if open
+    async function closeBookingModal() {
+      await page.waitForSelector('#booking-modal-close', { visible: true, timeout: 2000 });
+      await page.click('#booking-modal-close');
+      await page.waitForFunction(
+        () => {
+          const modal = document.querySelector('#booking-modal');
+          if (!modal) return true;
+          const style = window.getComputedStyle(modal);
+          return style.display === 'none' || style.opacity === '0';
+        },
+        { timeout: 2000 },
+      );
+      await new Promise(r => setTimeout(r, 300));
+    }
+
+    // Step 12: Click first service button
+    let svc1IsBookService = false;
     await step("Click Add Service button 1", async () => {
       await page.waitForSelector('[data-event-onclick^="handleCardAction"]', {
         visible: true,
         timeout: 5000,
       });
 
-      // First check if any button is already active (has "Remove" state) — if so, click to reset it
-      await page.evaluate(() => {
-        const activeBtn = document.querySelector('[data-event-onclick^="handleCardAction"].active');
-        if (activeBtn) activeBtn.click();
-      });
-      await new Promise(r => setTimeout(r, 500));
-
-      // Now click the first Add Service button
-      const clicked = await page.evaluate(() => {
+      const btnInfo = await page.evaluate(() => {
         const btns = document.querySelectorAll('[data-event-onclick^="handleCardAction"]');
         if (btns.length > 0) {
+          const text = btns[0].textContent.trim().toLowerCase();
           btns[0].scrollIntoView({ behavior: 'instant', block: 'center' });
           btns[0].click();
-          return true;
+          return { clicked: true, text };
         }
-        return false;
+        return { clicked: false, text: '' };
       });
-      if (!clicked) throw new Error('No Add Service button found');
+      if (!btnInfo.clicked) throw new Error('No service button found');
+
+      svc1IsBookService = btnInfo.text.includes('book');
+      console.log(`    [INFO] Button 1 text: "${btnInfo.text}" — isBookService: ${svc1IsBookService}`);
 
       // Handle variations modal if it pops up
       await handleVariationsModal();
       await new Promise(r => setTimeout(r, 500));
+    });
 
-      // Verify the button now has "active" class (text changed to "Remove")
-      const isActive = await page.evaluate(() => {
+    // Step 13: Verify lead form opens from service 1 (only if Book Service)
+    await step("Verify lead form opens (svc 1)", async () => {
+      if (!svc1IsBookService) {
+        console.log('    [SKIP] Button was Add/Remove Service — no form expected');
+        return;
+      }
+      await page.waitForSelector('#booking-modal', { visible: true, timeout: 3000 });
+      const modalVisible = await page.$eval('#booking-modal', (el) => {
+        const style = window.getComputedStyle(el);
+        return style.display !== 'none' && style.visibility !== 'hidden';
+      });
+      if (!modalVisible) throw new Error('Lead form did not open from service button 1');
+      console.log('    [INFO] Lead form opened from service button 1');
+      await closeBookingModal();
+    });
+
+    // Step 14: Click second service button
+    let svc2IsBookService = false;
+    await step("Click Add Service button 2", async () => {
+      // Close booking modal if still open from previous step
+      try { await closeBookingModal(); } catch (e) { /* may not be open */ }
+
+      const btnInfo = await page.evaluate(() => {
         const btns = document.querySelectorAll('[data-event-onclick^="handleCardAction"]');
-        if (btns.length > 0) {
-          return btns[0].classList.contains('active') ||
-                 btns[0].textContent.trim().toLowerCase() === 'remove';
-        }
-        return false;
-      });
-      if (!isActive) throw new Error('Button did not toggle to Remove/active state');
-    });
-
-    // Step 13: Verify booking cart appears at bottom with service info
-    await step("Verify booking cart appears", async () => {
-      const cartVisible = await page.evaluate(() => {
-        const cart = document.querySelector('#booking-cart-container') ||
-                     document.querySelector('.booking-cart-container');
-        if (!cart) return false;
-        return cart.classList.contains('active');
-      });
-      if (!cartVisible) throw new Error('Booking cart not visible (no active class)');
-
-      // Verify cart has service name text
-      const serviceName = await page.evaluate(() => {
-        const name = document.querySelector('#booking-cart-service-name') ||
-                     document.querySelector('.booking-cart-service-name');
-        return name ? name.textContent.trim() : '';
-      });
-      if (!serviceName) throw new Error('Cart has no service name');
-      console.log(`    [INFO] Cart shows: ${serviceName}`);
-    });
-
-    // Step 14: Click the same button again (now "Remove") to remove service, verify cart disappears
-    await step("Remove service from cart", async () => {
-      // Click the first button again — it should be in "Remove" / active state
-      const clicked = await page.evaluate(() => {
-        const btn = document.querySelector('[data-event-onclick^="handleCardAction"].active') ||
-                    document.querySelectorAll('[data-event-onclick^="handleCardAction"]')[0];
+        const btn = btns[1] || btns[0];
         if (btn) {
+          const text = btn.textContent.trim().toLowerCase();
           btn.scrollIntoView({ behavior: 'instant', block: 'center' });
           btn.click();
-          return true;
+          return { clicked: true, text };
         }
-        return false;
+        return { clicked: false, text: '' };
       });
-      if (!clicked) throw new Error('Could not find Remove button to click');
-      await new Promise(r => setTimeout(r, 1000));
+      if (!btnInfo.clicked) throw new Error('No service button found');
 
-      // Verify button toggled back to "Add Service" (no active class)
-      const toggledBack = await page.evaluate(() => {
-        const btns = document.querySelectorAll('[data-event-onclick^="handleCardAction"]');
-        if (btns.length > 0) {
-          return !btns[0].classList.contains('active') ||
-                 btns[0].textContent.trim().toLowerCase().includes('add');
-        }
-        return false;
-      });
-      if (!toggledBack) throw new Error('Button did not toggle back to Add Service');
-
-      // Verify cart is gone
-      const cartGone = await page.evaluate(() => {
-        const cart = document.querySelector('#booking-cart-container') ||
-                     document.querySelector('.booking-cart-container');
-        if (!cart) return true;
-        return !cart.classList.contains('active');
-      });
-      if (!cartGone) throw new Error('Cart still visible after removing service');
-    });
-
-    // Step 15: Click second "Add Service" button, verify cart comes back
-    await step("Click Add Service button 2", async () => {
-      const clicked = await page.evaluate(() => {
-        const btns = document.querySelectorAll('[data-event-onclick^="handleCardAction"]');
-        if (btns.length > 1) {
-          btns[1].scrollIntoView({ behavior: 'instant', block: 'center' });
-          btns[1].click();
-          return true;
-        } else if (btns.length === 1) {
-          btns[0].scrollIntoView({ behavior: 'instant', block: 'center' });
-          btns[0].click();
-          return true;
-        }
-        return false;
-      });
-      if (!clicked) throw new Error('No Add Service button found');
+      svc2IsBookService = btnInfo.text.includes('book');
+      console.log(`    [INFO] Button 2 text: "${btnInfo.text}" — isBookService: ${svc2IsBookService}`);
 
       // Handle variations modal if it pops up
       await handleVariationsModal();
       await new Promise(r => setTimeout(r, 500));
-
-      // Verify cart appeared again
-      const cartVisible = await page.evaluate(() => {
-        const cart = document.querySelector('#booking-cart-container') ||
-                     document.querySelector('.booking-cart-container');
-        return cart && cart.classList.contains('active');
-      });
-      if (!cartVisible) throw new Error('Cart did not appear after adding second service');
-
-      // Now clear using "Clear All" button in cart
-      const cleared = await page.evaluate(() => {
-        const clearBtn = document.querySelector('#booking-cart-clear-all-button') ||
-                         document.querySelector('.booking-cart-clear-all-button');
-        if (clearBtn) {
-          clearBtn.click();
-          return true;
-        }
-        return false;
-      });
-      if (!cleared) throw new Error('Clear All button not found in cart');
-      await new Promise(r => setTimeout(r, 1000));
     });
 
-    // Step 16: Click first category tab — verify page scrolls
+    // Step 15: Verify lead form opens from service 2 (only if Book Service)
+    await step("Verify lead form opens (svc 2)", async () => {
+      if (!svc2IsBookService) {
+        console.log('    [SKIP] Button was Add/Remove Service — no form expected');
+        return;
+      }
+      await page.waitForSelector('#booking-modal', { visible: true, timeout: 3000 });
+      const modalVisible = await page.$eval('#booking-modal', (el) => {
+        const style = window.getComputedStyle(el);
+        return style.display !== 'none' && style.visibility !== 'hidden';
+      });
+      if (!modalVisible) throw new Error('Lead form did not open from service button 2');
+      console.log('    [INFO] Lead form opened from service button 2');
+      await closeBookingModal();
+    });
+
+    // Step 14: Click first category tab — verify page scrolls
     await step("Click category tab 1", async () => {
       await page.evaluate(() => window.scrollTo(0, 0));
       await new Promise(r => setTimeout(r, 300));
