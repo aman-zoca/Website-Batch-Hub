@@ -230,20 +230,20 @@
       .action-btn:hover {
         background: #d1d5db;
       }
-      /* Sticky first 3 columns: Generate, Actions, # */
-      td:nth-child(1), th:nth-child(1) {
+      /* Sticky first 3 columns: Generate, Actions, # (tester table only) */
+      #tab-tester td:nth-child(1), #tab-tester th:nth-child(1) {
         position: sticky;
         left: 0;
         z-index: 3;
         background: #fff !important;
       }
-      td:nth-child(2), th:nth-child(2) {
+      #tab-tester td:nth-child(2), #tab-tester th:nth-child(2) {
         position: sticky;
         left: 70px;
         z-index: 3;
         background: #fff !important;
       }
-      td:nth-child(3), th:nth-child(3) {
+      #tab-tester td:nth-child(3), #tab-tester th:nth-child(3) {
         position: sticky;
         left: 145px;
         z-index: 3;
@@ -251,21 +251,21 @@
         border-right: 2px solid #d1d5db;
       }
       /* Sticky headers: top + left corner must be highest z-index */
-      th:nth-child(1), th:nth-child(2), th:nth-child(3) {
+      #tab-tester th:nth-child(1), #tab-tester th:nth-child(2), #tab-tester th:nth-child(3) {
         z-index: 5 !important;
         background: #f9fafb !important;
       }
       /* Row status colors for sticky columns */
-      tr:hover td:nth-child(1), tr:hover td:nth-child(2), tr:hover td:nth-child(3) {
+      #tab-tester tr:hover td:nth-child(1), #tab-tester tr:hover td:nth-child(2), #tab-tester tr:hover td:nth-child(3) {
         background: #f9fafb !important;
       }
-      tr.running td:nth-child(1), tr.running td:nth-child(2), tr.running td:nth-child(3) {
+      #tab-tester tr.running td:nth-child(1), #tab-tester tr.running td:nth-child(2), #tab-tester tr.running td:nth-child(3) {
         background: #dbeafe !important;
       }
-      tr.success td:nth-child(1), tr.success td:nth-child(2), tr.success td:nth-child(3) {
+      #tab-tester tr.success td:nth-child(1), #tab-tester tr.success td:nth-child(2), #tab-tester tr.success td:nth-child(3) {
         background: #dcfce7 !important;
       }
-      tr.failed td:nth-child(1), tr.failed td:nth-child(2), tr.failed td:nth-child(3) {
+      #tab-tester tr.failed td:nth-child(1), #tab-tester tr.failed td:nth-child(2), #tab-tester tr.failed td:nth-child(3) {
         background: #fee2e2 !important;
       }
       .gen-btn {
@@ -322,11 +322,57 @@
         background: #f59e0b;
         color: #fff;
       }
+      .control-section-teal {
+        background: #f0fdfa;
+        border: 1px solid #99f6e4;
+      }
+      .section-label-teal {
+        background: #14b8a6;
+        color: #fff;
+      }
+      .control-section input[type="text"] {
+        padding: 8px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        background: #fff;
+        color: #333;
+        font-size: 12px;
+      }
+      .step-running {
+        color: #1e40af;
+        font-weight: 500;
+      }
+      /* Tabs */
+      .tabs {
+        display: flex;
+        gap: 6px;
+        margin-bottom: 16px;
+      }
+      .tab-btn {
+        padding: 10px 18px;
+        border: none;
+        border-radius: 8px 8px 0 0;
+        cursor: pointer;
+        font-weight: 600;
+        font-size: 14px;
+        background: #e5e7eb;
+        color: #374151;
+      }
+      .tab-btn.active {
+        background: #3b82f6;
+        color: #fff;
+      }
     </style>
   </head>
   <body>
-    <h1>Website Popup Tester</h1>
+    <h1>Batch Hub</h1>
 
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="tab-tester">Website Tester</button>
+      <button class="tab-btn" data-tab="tab-service">Service Page Generator</button>
+    </div>
+
+    <div id="tab-tester" class="tab-panel">
     <div class="controls" style="flex-direction: column; gap: 10px;">
       <!-- Top bar: general controls + stats -->
       <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
@@ -419,6 +465,96 @@
         <div class="logs-content" id="logsContent"></div>
       </div>
     </div>
+    </div>
+    <!-- /tab-tester -->
+
+    <!-- ===== Service Page Generator tab ===== -->
+    <div id="tab-service" class="tab-panel" style="display: none">
+      <div class="controls" style="flex-direction: column; gap: 10px;">
+        <!-- Top bar: file + stats -->
+        <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+          <label class="btn btn-purple">
+            Import CSV
+            <input type="file" id="spFileInput" accept=".csv,.txt" />
+          </label>
+          <button class="btn btn-blue" id="spExportBtn">Export</button>
+          <button class="btn btn-red" id="spRemoveAllBtn">Remove All</button>
+          <input type="text" id="spSearchInput" placeholder="Search entity, website..." style="padding: 6px; border: 1px solid #ddd; border-radius: 4px; width: 180px; font-size: 12px;" oninput="spFilterTable()">
+          <span style="border-left: 1px solid #ddd; height: 24px;"></span>
+          <span class="stat stat-total">Total: <span id="spStatTotal">0</span></span>
+          <span class="stat stat-success">Pass: <span id="spStatSuccess">0</span></span>
+          <span class="stat stat-failed">Fail: <span id="spStatFailed">0</span></span>
+          <span class="stat stat-pending">Pending: <span id="spStatPending">0</span></span>
+        </div>
+
+        <!-- Auth + Run sections side by side -->
+        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+          <!-- Auth section -->
+          <div class="control-section control-section-teal">
+            <span class="section-label section-label-teal">Auth</span>
+            <label>Base URL: <input type="text" id="spBaseUrl" value="https://api.mononest.dev" style="width: 200px;" /></label>
+            <label>x-api-key: <input type="text" id="spApiKey" placeholder="zoca_..." style="width: 160px;" /></label>
+            <label>Metabase session: <input type="text" id="spMetaSession" value="aa16d652-efe3-464d-baf7-bff30d9d7d6c" style="width: 200px;" /></label>
+            <label>Metabase env:
+              <select id="spMetaUrl" style="width: 180px;">
+                <option value="https://metabase.mononest.dev" data-db="6">Dev (mononest.dev)</option>
+                <option value="https://metabase.zoca.ai" data-db="2">Prod (zoca.ai)</option>
+              </select>
+            </label>
+            <label>MB DB: <input type="number" id="spDatabase" value="6" min="1" style="width: 60px;" /></label>
+            <label>Content type: <input type="text" id="spContentType" value="CATEGORY_PAGE" style="width: 130px;" /></label>
+          </div>
+
+          <!-- Run section -->
+          <div class="control-section control-section-amber">
+            <span class="section-label section-label-amber">Run</span>
+            <label>Delay (s): <input type="number" id="spDelay" value="20" min="0" step="5" /></label>
+            <label>From: <input type="number" id="spFrom" value="0" min="0" /></label>
+            <label>To: <input type="number" id="spTo" value="0" min="0" /></label>
+            <label title="Force-publish items after generation"><input type="checkbox" id="spDoPublish" checked /> Publish</label>
+            <label title="Log full API responses in the Logs panel"><input type="checkbox" id="spLogResp" checked /> Log responses</label>
+            <button class="btn btn-green" id="spRunRangeBtn">Run All</button>
+            <button class="btn btn-green" id="spRunCheckedBtn">Run Checked</button>
+            <button class="btn btn-blue" id="spPublishCheckedBtn" title="Metabase fetch + parallel publish (skip activate/plan/gen-all) for checked rows">Publish Checked</button>
+            <button class="btn btn-gray" id="spPauseBtn" style="display: none" title="Pause before the next API call">⏸ Pause</button>
+            <button class="btn btn-green" id="spResumeBtn" style="display: none" title="Resume from where it paused">▶ Resume</button>
+            <button class="btn btn-red" id="spStopBtn" style="display: none" title="Abort the run">⏹ Stop</button>
+            <button class="btn btn-gray" id="spCheckAllBtn">Check All</button>
+            <button class="btn btn-gray" id="spCheckFailedBtn">Check Failed</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="main">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Run</th>
+                <th>#</th>
+                <th>Status</th>
+                <th>Entity ID</th>
+                <th>Website ID</th>
+                <th>Subdomain</th>
+                <th>Rank</th>
+                <th>1. Activate</th>
+                <th>2. Plan</th>
+                <th>3. Gen-All</th>
+                <th>4. Items (MB)</th>
+                <th>5. Published</th>
+              </tr>
+            </thead>
+            <tbody id="spTableBody"></tbody>
+          </table>
+        </div>
+
+        <div class="logs">
+          <h3>Logs</h3>
+          <div class="logs-content" id="spLogsContent"></div>
+        </div>
+      </div>
+    </div>
+    <!-- /tab-service -->
 
     <script>
       const STORAGE_KEY = "website-tester-data";
@@ -1185,6 +1321,719 @@ WHERE ww.url NOT ILIKE '%zoca.ai%'
         navigator.clipboard.writeText(sql);
         log('Website query copied to clipboard', 'success');
       });
+
+      // ===================================================================
+      // Tab switching
+      // ===================================================================
+      document.querySelectorAll(".tab-btn").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          document.querySelectorAll(".tab-btn").forEach((b) => b.classList.remove("active"));
+          btn.classList.add("active");
+          document.querySelectorAll(".tab-panel").forEach((p) => (p.style.display = "none"));
+          document.getElementById(btn.dataset.tab).style.display = "";
+        });
+      });
+
+      // ===================================================================
+      // Service Page Generator
+      // Pipeline per entity: activate -> plan -> generate-all -> poll items -> force-publish
+      // Every content-queue route is keyed by entity_id (no separate content-queue id).
+      // ===================================================================
+      const SP_KEY = "service-page-generator-data";
+      let spSites = [];
+      let spRunning = false;
+      let spShouldStop = false;
+      let spPaused = false;
+
+      function spLog(msg, type = "info") {
+        const div = document.getElementById("spLogsContent");
+        const time = new Date().toLocaleTimeString();
+        div.innerHTML += `<div class="log log-${type}">${time} - ${msg}</div>`;
+        div.scrollTop = div.scrollHeight;
+        console.log(`[SP][${type.toUpperCase()}] ${msg}`);
+      }
+
+      function spSave() {
+        localStorage.setItem(
+          SP_KEY,
+          JSON.stringify({
+            spSites,
+            baseUrl: document.getElementById("spBaseUrl").value,
+            apiKey: document.getElementById("spApiKey").value,
+            metaSession: document.getElementById("spMetaSession").value,
+            metaUrl: document.getElementById("spMetaUrl").value,
+            database: +document.getElementById("spDatabase").value,
+            contentType: document.getElementById("spContentType").value,
+            delay: +document.getElementById("spDelay").value,
+            from: +document.getElementById("spFrom").value,
+            to: +document.getElementById("spTo").value,
+            doPublish: document.getElementById("spDoPublish").checked,
+          })
+        );
+      }
+
+      // Load service-tab state
+      const spSaved = localStorage.getItem(SP_KEY);
+      if (spSaved) {
+        try {
+          const d = JSON.parse(spSaved);
+          spSites = d.spSites || [];
+          if (d.baseUrl) document.getElementById("spBaseUrl").value = d.baseUrl;
+          if (d.apiKey) document.getElementById("spApiKey").value = d.apiKey;
+          if (d.metaSession) document.getElementById("spMetaSession").value = d.metaSession;
+          if (d.metaUrl) document.getElementById("spMetaUrl").value = d.metaUrl;
+          if (d.database !== undefined) document.getElementById("spDatabase").value = d.database;
+          if (d.contentType) document.getElementById("spContentType").value = d.contentType;
+          if (d.delay !== undefined) document.getElementById("spDelay").value = d.delay;
+          if (d.from !== undefined) document.getElementById("spFrom").value = d.from;
+          if (d.to !== undefined) document.getElementById("spTo").value = d.to;
+          if (d.doPublish !== undefined) document.getElementById("spDoPublish").checked = d.doPublish;
+        } catch (e) {
+          console.error("Failed to load SP state", e);
+        }
+      }
+
+      function spStepCell(v) {
+        const cls =
+          v === "success" ? "step-success" : v === "failed" ? "step-failed" : v === "running" ? "step-running" : "step-skipped";
+        return `<td class="${cls}">${v || "-"}</td>`;
+      }
+
+      function spRender() {
+        const tbody = document.getElementById("spTableBody");
+        tbody.innerHTML = spSites
+          .map((s, i) => {
+            const itemsTxt = s.itemsFound != null ? String(s.itemsFound) : s.steps?.items || "-";
+            const pubTxt =
+              s.publishedCount != null ? `${s.publishedCount}/${s.itemsFound ?? "?"}` : s.steps?.publish || "-";
+            return `
+        <tr id="sp-row-${i}" class="${s.status || ""}">
+          <td>
+            <input type="checkbox" class="sp-check" data-sp-check="${i}" ${s.checked ? "checked" : ""} style="cursor:pointer">
+            <button class="gen-btn ${s.status ? "gen-" + s.status : ""}" data-sp-run="${i}" title="Full pipeline: activate → plan → gen-all → metabase → publish">▶</button>
+            <button class="action-btn" data-sp-pub="${i}" title="Publish only: metabase fetch + parallel publish">📤</button>
+          </td>
+          <td>${i}</td>
+          <td>${s.status || "pending"}</td>
+          <td title="${s.entity_id || ""}"><button class="action-btn" data-sp-copy="${s.entity_id || ""}" title="Copy entity_id">📋</button> ${s.entity_id || ""}</td>
+          <td title="${s.website_id || ""}"><button class="action-btn" data-sp-copy="${s.website_id || ""}" title="Copy website_id">📋</button> ${s.website_id || ""}</td>
+          <td title="${s.subdomain || ""}">${s.subdomain || ""}</td>
+          <td>${s.rank ?? ""}</td>
+          ${spStepCell(s.steps?.activate)}
+          ${spStepCell(s.steps?.plan)}
+          ${spStepCell(s.steps?.genall)}
+          <td class="step-${s.steps?.items || ""}">${itemsTxt}</td>
+          <td class="step-${s.steps?.publish || ""}">${pubTxt}</td>
+        </tr>`;
+          })
+          .join("");
+      }
+
+      function spUpdateStats() {
+        document.getElementById("spStatTotal").textContent = spSites.length;
+        document.getElementById("spStatSuccess").textContent = spSites.filter((s) => s.status === "success").length;
+        document.getElementById("spStatFailed").textContent = spSites.filter((s) => s.status === "failed").length;
+        document.getElementById("spStatPending").textContent = spSites.filter((s) => !s.status || s.status === "pending").length;
+      }
+
+      function spFilterTable() {
+        const q = document.getElementById("spSearchInput").value.toLowerCase();
+        spSites.forEach((s, i) => {
+          const row = document.getElementById(`sp-row-${i}`);
+          if (!row) return;
+          const hay = `${s.entity_id || ""} ${s.website_id || ""} ${s.subdomain || ""}`.toLowerCase();
+          row.style.display = !q || hay.includes(q) ? "" : "none";
+        });
+      }
+
+      function spEsc(s) {
+        return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      }
+
+      // Log a full API response (pretty-printed JSON) into the Logs panel.
+      function spLogResp(label, r) {
+        const div = document.getElementById("spLogsContent");
+        const time = new Date().toLocaleTimeString();
+        const type = r && r.success ? "success" : "error";
+        const status = r && r.status != null ? ` (HTTP ${r.status})` : "";
+        let body;
+        if (r && r.success) {
+          body = JSON.stringify(r.data !== undefined ? r.data : r, null, 2);
+        } else {
+          body = (r && r.error) || "unknown error";
+        }
+        div.innerHTML +=
+          `<div class="log log-${type}" style="white-space:pre-wrap;word-break:break-word;">` +
+          `${time} - ${spEsc(label)}${status}:\n${spEsc(body)}</div>`;
+        div.scrollTop = div.scrollHeight;
+      }
+
+      function spHeaders(extra) {
+        return Object.assign({ accept: "application/json", "ngrok-skip-browser-warning": "true" }, extra || {});
+      }
+
+      // Call the mononest API directly from the browser (same shape as the curl).
+      // Returns { success, status, data|error } and logs the full response.
+      async function spDirect(label, method, url, headers, body) {
+        let result;
+        try {
+          const opts = { method, headers };
+          if (body !== undefined) opts.body = JSON.stringify(body);
+          const res = await fetch(url, opts);
+          const status = res.status;
+          let data;
+          try {
+            data = await res.json();
+          } catch (e) {
+            data = await res.text();
+          }
+          const ok = status >= 200 && status < 300;
+          result = ok
+            ? { success: true, status, data }
+            : {
+                success: false,
+                status,
+                error: `HTTP ${status}: ${typeof data === "string" ? data : JSON.stringify(data)}`,
+                data,
+              };
+        } catch (e) {
+          result = { success: false, status: 0, error: `${e.message} (possible CORS/network block calling ${url})` };
+        }
+        if (document.getElementById("spLogResp")?.checked) spLogResp(label, result);
+        return result;
+      }
+
+      // POST to our local server (used for the Metabase proxy) and log the full response.
+      async function spLocal(label, path, payload) {
+        let result;
+        try {
+          const res = await fetch("http://localhost:3002" + path, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+          result = await res.json();
+        } catch (e) {
+          result = { success: false, error: e.message };
+        }
+        if (document.getElementById("spLogResp")?.checked) spLogResp(label, result);
+        return result;
+      }
+
+      // Query Metabase (via local proxy) for this entity's item ids.
+      async function spFetchMetabaseItems(eid) {
+        const session = document.getElementById("spMetaSession").value.trim();
+        const contentType = document.getElementById("spContentType").value.trim() || "CATEGORY_PAGE";
+        const metabaseUrl = document.getElementById("spMetaUrl").value.trim();
+        const database = +document.getElementById("spDatabase").value || undefined;
+        if (!session) return { success: false, error: "Set the Metabase session token first." };
+        return spLocal("metabase", "/api/sp/metabase", { session, entityId: eid, contentType, metabaseUrl, database });
+      }
+
+      // Force-publish every item in ONE batch job via force-all-category-pages.
+      // Sends all itemIds in a single call; the backend filters/skips and enqueues one
+      // generate-multipager job. Returns the count queued.
+      async function spPublishAll(idx, baseUrl, eid, apiKey, items) {
+        const itemIds = items.map((it) => it.id).filter(Boolean);
+        if (!itemIds.length) return 0;
+        const r = await spDirect(
+          "force-all-category-pages",
+          "POST",
+          `${baseUrl}/content-queue/${eid}/items/force-all-category-pages`,
+          spHeaders({ "x-api-key": apiKey, "content-type": "application/json" }),
+          { itemIds }
+        );
+        if (!r.success) {
+          spLog(`[${idx}] batch publish failed: ${r.error}`, "error");
+          return 0;
+        }
+        // Unwrap the API envelope { status, message, data: {...}, code }.
+        const d = (r.data && r.data.data) || r.data || {};
+        const queued = Array.isArray(d.queuedItemIds) ? d.queuedItemIds.length : d.queued ?? 0;
+        const skipped = Array.isArray(d.skipped) ? d.skipped.length : d.skipped ?? 0;
+        spLog(
+          `[${idx}] batch publish → job ${d.jobId ?? "?"}, queued ${queued}, skipped ${skipped} (of ${d.total ?? itemIds.length})`,
+          "info"
+        );
+        if (Array.isArray(d.skipped)) {
+          d.skipped.forEach((s) =>
+            spLog(`[${idx}]   skipped ${(s.itemId || "").slice(0, 8)}: ${s.reason || "?"}`, "info")
+          );
+        }
+        return queued;
+      }
+
+      const spSleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+      // Hold here while paused — this is the "pause where the API is hitting" point.
+      async function spWaitIfPaused(idx, where) {
+        if (!spPaused) return;
+        spLog(`[${idx}] ⏸ Paused ${where}. Click Resume to continue.`, "info");
+        while (spPaused && !spShouldStop) await spSleep(300);
+        if (!spShouldStop) spLog(`[${idx}] ▶ Resumed`, "info");
+      }
+
+      // Sleep, then honor a pause requested during the wait.
+      async function spInterStep(idx, ms, where) {
+        await spSleep(ms);
+        await spWaitIfPaused(idx, where);
+      }
+
+      function spSetRunningUI(running) {
+        document.getElementById("spRunRangeBtn").style.display = running ? "none" : "inline-flex";
+        document.getElementById("spRunCheckedBtn").style.display = running ? "none" : "inline-flex";
+        document.getElementById("spPauseBtn").style.display = running ? "inline-flex" : "none";
+        document.getElementById("spStopBtn").style.display = running ? "inline-flex" : "none";
+        document.getElementById("spResumeBtn").style.display = "none";
+      }
+
+      // Run the full pipeline for one entity row.
+      async function spRunRow(idx) {
+        const baseUrl = document.getElementById("spBaseUrl").value.trim().replace(/\/+$/, "");
+        const apiKey = document.getElementById("spApiKey").value.trim();
+        const delay = +document.getElementById("spDelay").value || 20;
+        const doPublish = document.getElementById("spDoPublish").checked;
+
+        const s = spSites[idx];
+        if (!s || !s.entity_id) {
+          spLog(`[${idx}] No entity_id for this row`, "error");
+          return;
+        }
+        if (!apiKey) {
+          spLog("Set x-api-key (zoca_...) first.", "error");
+          return;
+        }
+
+        const eid = s.entity_id;
+        const short = eid.slice(0, 8);
+        s.status = "running";
+        s.steps = {};
+        s.itemsFound = null;
+        s.publishedCount = null;
+        spRender();
+        document.getElementById(`sp-row-${idx}`)?.scrollIntoView({ block: "center" });
+
+        const mark = (k, v) => {
+          s.steps[k] = v;
+          spRender();
+        };
+        const fail = (stepName, err) => {
+          s.status = "failed";
+          spLog(`[${idx}] ${short} ${stepName} FAILED: ${err}`, "error");
+          spRender();
+          spUpdateStats();
+          spSave();
+        };
+
+        // 1. Activate
+        spLog(`[${idx}] ${short} → 1. activate`, "info");
+        mark("activate", "running");
+        let r = await spDirect("activate", "POST", `${baseUrl}/content-queue/${eid}/activate`, spHeaders({ "x-api-key": apiKey }));
+        if (!r.success) {
+          mark("activate", "failed");
+          fail("activate", r.error || "unknown");
+          return;
+        }
+        mark("activate", "success");
+        await spInterStep(idx, delay * 1000, "before plan");
+        if (spShouldStop) {
+          fail("(stopped)", "stopped by user");
+          return;
+        }
+
+        // 2. Plan
+        spLog(`[${idx}] ${short} → 2. plan/generate`, "info");
+        mark("plan", "running");
+        r = await spDirect("plan/generate", "POST", `${baseUrl}/content-queue/${eid}/plan/generate`, spHeaders({ "x-api-key": apiKey }));
+        if (!r.success) {
+          mark("plan", "failed");
+          fail("plan", r.error || "unknown");
+          return;
+        }
+        mark("plan", "success");
+        await spInterStep(idx, delay * 1000, "before generate-all");
+        if (spShouldStop) {
+          fail("(stopped)", "stopped by user");
+          return;
+        }
+
+        // 3. Generate-all (async)
+        spLog(`[${idx}] ${short} → 3. generate-all`, "info");
+        mark("genall", "running");
+        r = await spDirect("generate-all", "POST", `${baseUrl}/content-queue/${eid}/generate-all`, spHeaders({ "x-api-key": apiKey }));
+        if (!r.success) {
+          mark("genall", "failed");
+          fail("generate-all", r.error || "unknown");
+          return;
+        }
+        mark("genall", "success");
+
+        // 4. Metabase — fetch the real item ids for this entity
+        await spInterStep(idx, delay * 1000, "before metabase fetch");
+        if (spShouldStop) {
+          fail("(stopped)", "stopped by user");
+          return;
+        }
+        spLog(`[${idx}] ${short} → 4. metabase items`, "info");
+        mark("items", "running");
+        const mb = await spFetchMetabaseItems(eid);
+        if (!mb.success) {
+          mark("items", "failed");
+          fail("metabase", mb.error || "unknown");
+          return;
+        }
+        const items = mb.items || [];
+        s.itemsFound = items.length;
+        mark("items", items.length > 0 ? "success" : "failed");
+        spLog(`[${idx}] ${short} metabase returned ${items.length} item(s)`, items.length ? "info" : "error");
+
+        // 5. Force-publish all items in parallel
+        if (doPublish && items.length) {
+          await spWaitIfPaused(idx, "before publish");
+          if (spShouldStop) {
+            fail("(stopped)", "stopped by user");
+            return;
+          }
+          spLog(`[${idx}] ${short} → 5. batch publishing ${items.length} item(s) in one job`, "info");
+          mark("publish", "running");
+          const pub = await spPublishAll(idx, baseUrl, eid, apiKey, items);
+          s.publishedCount = pub;
+          mark("publish", pub > 0 ? "success" : "failed");
+        }
+
+        const ok =
+          s.steps.activate === "success" &&
+          s.steps.plan === "success" &&
+          s.steps.genall === "success" &&
+          s.itemsFound > 0 &&
+          (!doPublish || s.publishedCount > 0);
+        s.status = ok ? "success" : "failed";
+        spLog(
+          `[${idx}] ${short} DONE — items:${s.itemsFound}, published:${s.publishedCount ?? "-"}`,
+          ok ? "success" : "error"
+        );
+        spRender();
+        spUpdateStats();
+        spSave();
+      }
+
+      // Run a list of row indices sequentially through a worker (with pause support).
+      async function spSequence(idxs, worker, verb) {
+        const apiKey = document.getElementById("spApiKey").value.trim();
+        if (!apiKey) {
+          spLog("Set x-api-key (zoca_...) first.", "error");
+          return;
+        }
+        if (idxs.length === 0) {
+          spLog("Nothing to run.", "error");
+          return;
+        }
+        spRunning = true;
+        spShouldStop = false;
+        spPaused = false;
+        spSetRunningUI(true);
+
+        spLog(`${verb} ${idxs.length} entit${idxs.length === 1 ? "y" : "ies"}`, "info");
+        for (let j = 0; j < idxs.length; j++) {
+          await spWaitIfPaused(idxs[j], "before next entity");
+          if (spShouldStop) {
+            spLog("Stopped by user", "error");
+            break;
+          }
+          spLog(`--- ${j + 1}/${idxs.length} (row ${idxs[j]}) ---`, "info");
+          await worker(idxs[j]);
+        }
+
+        spRunning = false;
+        spSetRunningUI(false);
+        spLog("Batch completed", "success");
+      }
+
+      const spRunSequence = (idxs) => spSequence(idxs, spRunRow, "Starting pipeline for");
+      const spPublishSequence = (idxs) => spSequence(idxs, spPublishOnly, "Publishing (metabase) for");
+
+      // Publish-only: metabase fetch + parallel publish (skips activate/plan/gen-all).
+      async function spPublishOnly(idx) {
+        const baseUrl = document.getElementById("spBaseUrl").value.trim().replace(/\/+$/, "");
+        const apiKey = document.getElementById("spApiKey").value.trim();
+        const s = spSites[idx];
+        if (!s || !s.entity_id) {
+          spLog(`[${idx}] No entity_id for this row`, "error");
+          return;
+        }
+        const eid = s.entity_id;
+        const short = eid.slice(0, 8);
+        s.status = "running";
+        s.steps = s.steps || {};
+        s.itemsFound = null;
+        s.publishedCount = null;
+        spRender();
+        document.getElementById(`sp-row-${idx}`)?.scrollIntoView({ block: "center" });
+
+        await spWaitIfPaused(idx, "before metabase fetch");
+        if (spShouldStop) {
+          s.status = "failed";
+          spRender();
+          return;
+        }
+
+        spLog(`[${idx}] ${short} → metabase items`, "info");
+        s.steps.items = "running";
+        spRender();
+        const mb = await spFetchMetabaseItems(eid);
+        if (!mb.success) {
+          s.steps.items = "failed";
+          s.status = "failed";
+          spLog(`[${idx}] ${short} metabase FAILED: ${mb.error}`, "error");
+          spRender();
+          spUpdateStats();
+          spSave();
+          return;
+        }
+        const items = mb.items || [];
+        s.itemsFound = items.length;
+        s.steps.items = items.length > 0 ? "success" : "failed";
+        spLog(`[${idx}] ${short} metabase returned ${items.length} item(s)`, items.length ? "info" : "error");
+        spRender();
+
+        if (items.length) {
+          await spWaitIfPaused(idx, "before publish");
+          if (spShouldStop) {
+            s.status = "failed";
+            spRender();
+            return;
+          }
+          spLog(`[${idx}] ${short} publishing ${items.length} item(s) in parallel`, "info");
+          s.steps.publish = "running";
+          spRender();
+          const pub = await spPublishAll(idx, baseUrl, eid, apiKey, items);
+          s.publishedCount = pub;
+          s.steps.publish = pub > 0 ? "success" : "failed";
+        }
+
+        s.status = s.itemsFound > 0 && s.publishedCount > 0 ? "success" : "failed";
+        spLog(
+          `[${idx}] ${short} PUBLISH DONE — items:${s.itemsFound}, published:${s.publishedCount ?? "-"}`,
+          s.status === "success" ? "success" : "error"
+        );
+        spRender();
+        spUpdateStats();
+        spSave();
+      }
+
+      // File import (entity_id, website_id, completed_rank_extractions)
+      document.getElementById("spFileInput").addEventListener("change", (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        spLog(`Loading file: ${file.name}`, "info");
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+          const text = evt.target.result;
+          const lines = text.split("\n").filter((l) => l.trim());
+          if (lines.length < 2) {
+            spLog("File has no data rows", "error");
+            return;
+          }
+          const delimiter = lines[0].includes("\t") ? "\t" : ",";
+          const headers = lines[0].split(delimiter).map((h) => h.trim().toLowerCase().replace(/"/g, ""));
+          spSites = [];
+          for (let i = 1; i < lines.length; i++) {
+            const line = lines[i].trim();
+            if (!line) continue;
+            const values = line.split(delimiter).map((v) => v.trim().replace(/"/g, ""));
+            const obj = { steps: {}, status: "pending" };
+            headers.forEach((h, idx) => {
+              const val = values[idx] || "";
+              if (h === "entity_id" || h === "entityid") obj.entity_id = val;
+              else if (h === "website_id" || h === "websiteid") obj.website_id = val;
+              else if (h === "subdomain" || h === "sub_domain") obj.subdomain = val;
+              else if (h === "completed_rank_extractions" || h === "rank" || h === "completed_rank") obj.rank = val;
+            });
+            if (obj.entity_id) spSites.push(obj);
+          }
+          document.getElementById("spTo").value = Math.max(0, spSites.length - 1);
+          spRender();
+          spUpdateStats();
+          spSave();
+          spLog(`Imported ${spSites.length} entities`, "success");
+        };
+        reader.readAsText(file);
+      });
+
+      // Run All (range)
+      document.getElementById("spRunRangeBtn").addEventListener("click", () => {
+        if (spSites.length === 0) {
+          spLog("No entities! Import a CSV first.", "error");
+          return;
+        }
+        const from = +document.getElementById("spFrom").value;
+        const to = Math.min(+document.getElementById("spTo").value, spSites.length - 1);
+        if (from > to || from >= spSites.length) {
+          spLog("Invalid From/To range!", "error");
+          return;
+        }
+        const idxs = [];
+        for (let i = from; i <= to; i++) idxs.push(i);
+        spRunSequence(idxs);
+      });
+
+      // Run Checked
+      document.getElementById("spRunCheckedBtn").addEventListener("click", () => {
+        const idxs = [];
+        spSites.forEach((s, i) => {
+          if (s.checked && s.entity_id) idxs.push(i);
+        });
+        if (idxs.length === 0) {
+          spLog("No rows checked!", "error");
+          return;
+        }
+        spRunSequence(idxs);
+      });
+
+      // Publish Checked — metabase fetch + parallel publish only (skip activate/plan/gen-all)
+      document.getElementById("spPublishCheckedBtn").addEventListener("click", () => {
+        const idxs = [];
+        spSites.forEach((s, i) => {
+          if (s.checked && s.entity_id) idxs.push(i);
+        });
+        if (idxs.length === 0) {
+          spLog("No rows checked!", "error");
+          return;
+        }
+        spPublishSequence(idxs);
+      });
+
+      // Pause — hold before the next API call (where the API is hitting)
+      document.getElementById("spPauseBtn").addEventListener("click", () => {
+        spPaused = true;
+        document.getElementById("spPauseBtn").style.display = "none";
+        document.getElementById("spResumeBtn").style.display = "inline-flex";
+        spLog("Pause requested — will hold at the next API boundary", "info");
+      });
+      // Resume — continue from where it paused
+      document.getElementById("spResumeBtn").addEventListener("click", () => {
+        spPaused = false;
+        document.getElementById("spResumeBtn").style.display = "none";
+        document.getElementById("spPauseBtn").style.display = "inline-flex";
+      });
+      // Stop — abort the run
+      document.getElementById("spStopBtn").addEventListener("click", () => {
+        spShouldStop = true;
+        spPaused = false;
+        spLog("Stop requested — aborting", "error");
+      });
+
+      // Check All / Check Failed
+      document.getElementById("spCheckAllBtn").addEventListener("click", () => {
+        spSites.forEach((s) => (s.checked = true));
+        spRender();
+        spLog(`Checked all ${spSites.length} rows`, "info");
+      });
+      document.getElementById("spCheckFailedBtn").addEventListener("click", () => {
+        let c = 0;
+        spSites.forEach((s) => {
+          if (s.status === "failed") {
+            s.checked = true;
+            c++;
+          }
+        });
+        spRender();
+        spLog(`Checked ${c} failed rows`, "info");
+      });
+
+      // Remove All
+      document.getElementById("spRemoveAllBtn").addEventListener("click", () => {
+        if (confirm("Remove all entities from the Service Page Generator?")) {
+          spSites = [];
+          document.getElementById("spFrom").value = 0;
+          document.getElementById("spTo").value = 0;
+          spRender();
+          spUpdateStats();
+          spSave();
+          document.getElementById("spLogsContent").innerHTML = "";
+          spLog("Removed all entities", "info");
+        }
+      });
+
+      // Export
+      document.getElementById("spExportBtn").addEventListener("click", () => {
+        const headers = ["entity_id", "website_id", "subdomain", "rank", "status", "activate", "plan", "genall", "items_found", "published"];
+        const csv = [headers.join(",")];
+        spSites.forEach((s) => {
+          csv.push(
+            [
+              s.entity_id || "",
+              s.website_id || "",
+              s.subdomain || "",
+              s.rank ?? "",
+              s.status || "",
+              s.steps?.activate || "",
+              s.steps?.plan || "",
+              s.steps?.genall || "",
+              s.itemsFound ?? "",
+              s.publishedCount ?? "",
+            ].join(",")
+          );
+        });
+        const blob = new Blob([csv.join("\n")], { type: "text/csv" });
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = `service-pages-${new Date().toISOString().split("T")[0]}.csv`;
+        a.click();
+        spLog("Exported results", "success");
+      });
+
+      // Table delegation: per-row run + checkbox
+      document.getElementById("spTableBody").addEventListener("click", (e) => {
+        const copyBtn = e.target.closest("[data-sp-copy]");
+        if (copyBtn) {
+          const val = copyBtn.dataset.spCopy;
+          if (val) {
+            navigator.clipboard.writeText(val);
+            spLog(`Copied ${val}`, "success");
+          }
+          return;
+        }
+        const cb = e.target.closest("[data-sp-check]");
+        if (cb) {
+          spSites[+cb.dataset.spCheck].checked = cb.checked;
+          return;
+        }
+        const pubBtn = e.target.closest("[data-sp-pub]");
+        if (pubBtn) {
+          if (spRunning) {
+            spLog("A run is already in progress.", "error");
+            return;
+          }
+          spPublishSequence([+pubBtn.dataset.spPub]);
+          return;
+        }
+        const runBtn = e.target.closest("[data-sp-run]");
+        if (runBtn) {
+          if (spRunning) {
+            spLog("A run is already in progress.", "error");
+            return;
+          }
+          spRunSequence([+runBtn.dataset.spRun]);
+        }
+      });
+
+      // Switching Metabase env auto-fills the matching DB id (from the option's data-db).
+      document.getElementById("spMetaUrl").addEventListener("change", (e) => {
+        const opt = e.target.selectedOptions[0];
+        if (opt && opt.dataset.db) document.getElementById("spDatabase").value = opt.dataset.db;
+        spSave();
+      });
+
+      // Persist config inputs on change
+      ["spBaseUrl", "spApiKey", "spMetaSession", "spContentType", "spDatabase", "spDelay", "spFrom", "spTo"].forEach((id) => {
+        document.getElementById(id).addEventListener("input", spSave);
+      });
+      document.getElementById("spDoPublish").addEventListener("change", spSave);
+
+      // Initial render of service tab
+      spRender();
+      spUpdateStats();
     </script>
   </body>
 </html>

@@ -803,6 +803,217 @@ app.post("/api/generate", async (req, res) => {
   }
 });
 
+// ===== Service Page Generator endpoints =====
+// Thin proxy for the content-queue pipeline (activate -> plan -> generate-all -> items -> force-publish).
+// All content-queue routes are keyed by :entityId (there is no separate content-queue id).
+async function spProxy({ method, url, headers, body }) {
+  const opts = { method, headers };
+  if (body !== undefined) opts.body = JSON.stringify(body);
+  const response = await fetch(url, opts);
+  const status = response.status;
+  let data;
+  try {
+    data = await response.json();
+  } catch (e) {
+    data = await response.text();
+  }
+  return { status, data, ok: status >= 200 && status < 300 };
+}
+
+function spErr(status, data) {
+  return `HTTP ${status}: ${typeof data === "string" ? data : JSON.stringify(data)}`;
+}
+
+// Step 1 — activate content queue (sets V3 prefs; must run before plan)
+app.post("/api/sp/activate", async (req, res) => {
+  const { baseUrl, apiKey, entityId } = req.body;
+  if (!baseUrl || !apiKey || !entityId) {
+    return res.status(400).json({ success: false, error: "baseUrl, apiKey, entityId required" });
+  }
+  try {
+    const { status, data, ok } = await spProxy({
+      method: "POST",
+      url: `${baseUrl}/content-queue/${entityId}/activate`,
+      headers: { accept: "application/json", "x-api-key": apiKey, "ngrok-skip-browser-warning": "true" },
+    });
+    console.log(`[sp/activate] ${entityId} -> ${status}`);
+    res.json(ok ? { success: true, status, data } : { success: false, status, error: spErr(status, data) });
+  } catch (e) {
+    res.json({ success: false, error: e.message });
+  }
+});
+
+// Step 2 — generate plan (creates plan entries; 400s if not activated first)
+app.post("/api/sp/plan", async (req, res) => {
+  const { baseUrl, apiKey, entityId } = req.body;
+  if (!baseUrl || !apiKey || !entityId) {
+    return res.status(400).json({ success: false, error: "baseUrl, apiKey, entityId required" });
+  }
+  try {
+    const { status, data, ok } = await spProxy({
+      method: "POST",
+      url: `${baseUrl}/content-queue/${entityId}/plan/generate`,
+      headers: { accept: "application/json", "x-api-key": apiKey, "ngrok-skip-browser-warning": "true" },
+    });
+    console.log(`[sp/plan] ${entityId} -> ${status}`);
+    res.json(ok ? { success: true, status, data } : { success: false, status, error: spErr(status, data) });
+  } catch (e) {
+    res.json({ success: false, error: e.message });
+  }
+});
+
+// Step 3 — generate all pending content (async / 202; worker generates afterward)
+app.post("/api/sp/generate-all", async (req, res) => {
+  const { baseUrl, apiKey, entityId } = req.body;
+  if (!baseUrl || !apiKey || !entityId) {
+    return res.status(400).json({ success: false, error: "baseUrl, apiKey, entityId required" });
+  }
+  try {
+    const { status, data, ok } = await spProxy({
+      method: "POST",
+      url: `${baseUrl}/content-queue/${entityId}/generate-all`,
+      headers: { accept: "application/json", "x-api-key": apiKey, "ngrok-skip-browser-warning": "true" },
+    });
+    console.log(`[sp/generate-all] ${entityId} -> ${status}`);
+    res.json(ok ? { success: true, status, data } : { success: false, status, error: spErr(status, data) });
+  } catch (e) {
+    res.json({ success: false, error: e.message });
+  }
+});
+
+// Step 4 — list items (poll target). Uses Bearer JWT and/or x-api-key.
+// Normalizes the response and tags each item with a `ready` flag.
+app.post("/api/sp/items", async (req, res) => {
+  const { baseUrl, entityId, bearer, apiKey } = req.body;
+  if (!baseUrl || !entityId) {
+    return res.status(400).json({ success: false, error: "baseUrl, entityId required" });
+  }
+  const headers = {
+    accept: "application/json, text/plain, */*",
+    "x-active-entity-id": entityId,
+    "ngrok-skip-browser-warning": "true",
+  };
+  if (bearer) headers["authorization"] = `Bearer ${bearer}`;
+  if (apiKey) headers["x-api-key"] = apiKey;
+  try {
+    const { status, data, ok } = await spProxy({
+      method: "GET",
+      url: `${baseUrl}/content-queue/${entityId}/items?page=1&limit=100`,
+      headers,
+    });
+    if (!ok) return res.json({ success: false, status, error: spErr(status, data) });
+    const rawItems = (data && (data.items || (data.data && data.data.items))) || [];
+    const items = rawItems.map((it) => {
+      const contentRefId = it.contentRefId ?? it.content_ref_id ?? null;
+      const st = it.status || it.itemStatus || null;
+      const ready = !!contentRefId || (st && !["PENDING_GENERATION", "FAILED", "REJECTED"].includes(st));
+      return {
+        id: it.id || it.itemId,
+        contentType: it.contentType || it.content_type || null,
+        contentRefId,
+        status: st,
+        ready: !!ready,
+      };
+    });
+    res.json({ success: true, status, items, total: (data && data.total) ?? items.length });
+  } catch (e) {
+    res.json({ success: false, error: e.message });
+  }
+});
+
+// Step 5 — force-publish a single item
+app.post("/api/sp/force-publish", async (req, res) => {
+  const { baseUrl, apiKey, entityId, itemId } = req.body;
+  if (!baseUrl || !apiKey || !entityId || !itemId) {
+    return res.status(400).json({ success: false, error: "baseUrl, apiKey, entityId, itemId required" });
+  }
+  try {
+    const { status, data, ok } = await spProxy({
+      method: "POST",
+      url: `${baseUrl}/content-queue/${entityId}/items/${itemId}/force-publish`,
+      headers: { accept: "application/json", "x-api-key": apiKey, "ngrok-skip-browser-warning": "true" },
+    });
+    console.log(`[sp/force-publish] ${entityId}/${itemId} -> ${status}`);
+    res.json(ok ? { success: true, status, data } : { success: false, status, error: spErr(status, data) });
+  } catch (e) {
+    res.json({ success: false, error: e.message });
+  }
+});
+
+// Step 5b — force-publish many CATEGORY_PAGE items in ONE batch job.
+// Proxies POST /content-queue/:entityId/items/force-all-category-pages { itemIds: [...] }.
+app.post("/api/sp/force-all-category-pages", async (req, res) => {
+  const { baseUrl, apiKey, entityId, itemIds } = req.body;
+  if (!baseUrl || !apiKey || !entityId || !Array.isArray(itemIds) || itemIds.length === 0) {
+    return res.status(400).json({ success: false, error: "baseUrl, apiKey, entityId, itemIds[] required" });
+  }
+  try {
+    const { status, data, ok } = await spProxy({
+      method: "POST",
+      url: `${baseUrl}/content-queue/${entityId}/items/force-all-category-pages`,
+      headers: {
+        accept: "application/json",
+        "content-type": "application/json",
+        "x-api-key": apiKey,
+        "ngrok-skip-browser-warning": "true",
+      },
+      body: { itemIds },
+    });
+    console.log(`[sp/force-all-category-pages] ${entityId} (${itemIds.length} ids) -> ${status}`);
+    res.json(ok ? { success: true, status, data } : { success: false, status, error: spErr(status, data) });
+  } catch (e) {
+    res.json({ success: false, error: e.message });
+  }
+});
+
+// Metabase — query content.items directly to get the real item ids for an entity.
+// Authenticated via X-Metabase-Session (the metabase.SESSION cookie value).
+app.post("/api/sp/metabase", async (req, res) => {
+  const { session, entityId, contentType, database, metabaseUrl } = req.body;
+  if (!session || !entityId) {
+    return res.status(400).json({ success: false, error: "session and entityId required" });
+  }
+  const db = database || 6;
+  const ct = contentType || "CATEGORY_PAGE";
+  const base = (metabaseUrl || "https://metabase.mononest.dev").replace(/\/+$/, "");
+  const sql = `select * from content.items where content_type = '${ct}' and entity_id = '${entityId}'`;
+  try {
+    const { status, data, ok } = await spProxy({
+      method: "POST",
+      url: `${base}/api/dataset`,
+      headers: {
+        accept: "application/json",
+        "content-type": "application/json",
+        "X-Metabase-Session": session,
+      },
+      body: {
+        "lib/type": "mbql/query",
+        database: db,
+        stages: [{ "lib/type": "mbql.stage/native", native: sql, "template-tags": {} }],
+        parameters: [],
+      },
+    });
+    if (!ok) return res.json({ success: false, status, error: spErr(status, data) });
+    const cols = (data && data.data && data.data.cols) || [];
+    const rows = (data && data.data && data.data.rows) || [];
+    const idxOf = (name) => cols.findIndex((c) => (c.name || "").toLowerCase() === name);
+    const idIdx = idxOf("id");
+    const statusIdx = idxOf("status");
+    const refIdx = idxOf("content_ref_id");
+    const ctIdx = idxOf("content_type");
+    const items = rows.map((r) => ({
+      id: idIdx >= 0 ? r[idIdx] : r[0],
+      status: statusIdx >= 0 ? r[statusIdx] : r[r.length - 1],
+      contentRefId: refIdx >= 0 ? r[refIdx] : null,
+      contentType: ctIdx >= 0 ? r[ctIdx] : ct,
+    }));
+    console.log(`[sp/metabase] ${entityId} (${ct}) -> ${items.length} items`);
+    res.json({ success: true, status, items, total: items.length });
+  } catch (e) {
+    res.json({ success: false, error: e.message });
+  }
+});
+
 // Health check
 app.get("/api/health", (req, res) => {
   res.json({ status: "ok" });
