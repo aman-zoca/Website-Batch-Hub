@@ -503,6 +503,7 @@
             </label>
             <label>MB DB: <input type="number" id="spDatabase" value="6" min="1" style="width: 60px;" /></label>
             <label>Content type: <input type="text" id="spContentType" value="CATEGORY_PAGE" style="width: 130px;" /></label>
+            <label title="Override the per-quarter category-page cap (backend default 13). Leave blank to use the default."> Max cat pages: <input type="number" id="spMaxCatPages" min="1" placeholder="13" style="width: 60px;" /></label>
           </div>
 
           <!-- Run section -->
@@ -1644,7 +1645,13 @@ WHERE ww.url NOT ILIKE '%zoca.ai%'
         // 2. Plan
         spLog(`[${idx}] ${short} → 2. plan/generate`, "info");
         mark("plan", "running");
-        r = await spDirect("plan/generate", "POST", `${baseUrl}/content-queue/${eid}/plan/generate`, spHeaders({ "x-api-key": apiKey }));
+        // Optional override for the backend's per-quarter category-page cap
+        // (default 13). Only appended when a positive value is entered, so blank
+        // input preserves the backend default and stays compatible with backends
+        // that don't yet support the param.
+        const spMaxCatPages = parseInt(document.getElementById("spMaxCatPages")?.value, 10);
+        const spPlanQuery = spMaxCatPages > 0 ? `?maxCategoryPages=${spMaxCatPages}` : "";
+        r = await spDirect("plan/generate", "POST", `${baseUrl}/content-queue/${eid}/plan/generate${spPlanQuery}`, spHeaders({ "x-api-key": apiKey }));
         if (!r.success) {
           mark("plan", "failed");
           fail("plan", r.error || "unknown");
