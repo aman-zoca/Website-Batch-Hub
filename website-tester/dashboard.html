@@ -523,6 +523,21 @@
             <button class="btn btn-gray" id="spCheckAllBtn">Check All</button>
             <button class="btn btn-gray" id="spCheckFailedBtn">Check Failed</button>
           </div>
+
+          <!-- Batch Run section -->
+          <div class="control-section" style="background: #fdf2f8; border: 1px solid #f9a8d4;">
+            <span class="section-label" style="background: #ec4899; color: #fff;">Batch Run</span>
+            <label>From: <input type="number" id="spBatchFrom" value="0" min="0" /></label>
+            <label>To: <input type="number" id="spBatchTo" value="0" min="0" /></label>
+            <label title="Number of entities per batch">Batch size: <input type="number" id="spBatchSize" value="5" min="1" step="1" /></label>
+            <label title="Delay between entities within a batch (seconds)">Entity delay (s): <input type="number" id="spBatchEntityDelay" value="2" min="0" step="1" /></label>
+            <label title="Delay between batches (minutes)">Batch delay (min): <input type="number" id="spBatchDelay" value="45" min="1" step="5" /></label>
+            <button class="btn btn-green" id="spBatchRunBtn">Batch Run</button>
+            <button class="btn btn-gray" id="spBatchPauseBtn" style="display: none">⏸ Pause</button>
+            <button class="btn btn-green" id="spBatchResumeBtn" style="display: none">▶ Resume</button>
+            <button class="btn btn-red" id="spBatchStopBtn" style="display: none">⏹ Stop</button>
+            <span id="spBatchStatus" style="font-size: 12px; color: #6b7280; margin-left: 8px;"></span>
+          </div>
         </div>
       </div>
 
@@ -1369,6 +1384,11 @@ WHERE ww.url NOT ILIKE '%zoca.ai%'
             from: +document.getElementById("spFrom").value,
             to: +document.getElementById("spTo").value,
             doPublish: document.getElementById("spDoPublish").checked,
+            batchFrom: +document.getElementById("spBatchFrom").value,
+            batchTo: +document.getElementById("spBatchTo").value,
+            batchSize: +document.getElementById("spBatchSize").value,
+            batchEntityDelay: +document.getElementById("spBatchEntityDelay").value,
+            batchDelay: +document.getElementById("spBatchDelay").value,
           })
         );
       }
@@ -1389,6 +1409,11 @@ WHERE ww.url NOT ILIKE '%zoca.ai%'
           if (d.from !== undefined) document.getElementById("spFrom").value = d.from;
           if (d.to !== undefined) document.getElementById("spTo").value = d.to;
           if (d.doPublish !== undefined) document.getElementById("spDoPublish").checked = d.doPublish;
+          if (d.batchFrom !== undefined) document.getElementById("spBatchFrom").value = d.batchFrom;
+          if (d.batchTo !== undefined) document.getElementById("spBatchTo").value = d.batchTo;
+          if (d.batchSize !== undefined) document.getElementById("spBatchSize").value = d.batchSize;
+          if (d.batchEntityDelay !== undefined) document.getElementById("spBatchEntityDelay").value = d.batchEntityDelay;
+          if (d.batchDelay !== undefined) document.getElementById("spBatchDelay").value = d.batchDelay;
         } catch (e) {
           console.error("Failed to load SP state", e);
         }
@@ -2037,6 +2062,180 @@ WHERE ww.url NOT ILIKE '%zoca.ai%'
         document.getElementById(id).addEventListener("input", spSave);
       });
       document.getElementById("spDoPublish").addEventListener("change", spSave);
+
+      // ===================================================================
+      // Batch Run — process entities in batches with long delays between
+      // ===================================================================
+      let spBatchRunning = false;
+      let spBatchShouldStop = false;
+      let spBatchPaused = false;
+      let spBatchCountdownTimer = null;
+
+      function spBatchSetUI(running) {
+        document.getElementById("spBatchRunBtn").style.display = running ? "none" : "inline-flex";
+        document.getElementById("spBatchPauseBtn").style.display = running ? "inline-flex" : "none";
+        document.getElementById("spBatchStopBtn").style.display = running ? "inline-flex" : "none";
+        document.getElementById("spBatchResumeBtn").style.display = "none";
+        if (!running) {
+          document.getElementById("spBatchStatus").textContent = "";
+          if (spBatchCountdownTimer) { clearInterval(spBatchCountdownTimer); spBatchCountdownTimer = null; }
+        }
+      }
+
+      function spBatchStatusText(text) {
+        document.getElementById("spBatchStatus").textContent = text;
+      }
+
+      // Countdown display between batches
+      function spBatchStartCountdown(totalSec, batchNum, totalBatches) {
+        let remaining = totalSec;
+        const update = () => {
+          const m = Math.floor(remaining / 60);
+          const s = remaining % 60;
+          spBatchStatusText(`Batch ${batchNum}/${totalBatches} done. Next batch in ${m}m ${s}s...`);
+        };
+        update();
+        spBatchCountdownTimer = setInterval(() => {
+          remaining--;
+          if (remaining <= 0) {
+            clearInterval(spBatchCountdownTimer);
+            spBatchCountdownTimer = null;
+            spBatchStatusText("");
+          } else {
+            update();
+          }
+        }, 1000);
+      }
+
+      document.getElementById("spBatchRunBtn").addEventListener("click", async () => {
+        const apiKey = document.getElementById("spApiKey").value.trim();
+        if (!apiKey) { spLog("Set x-api-key first.", "error"); return; }
+        if (spSites.length === 0) { spLog("No entities! Import a CSV first.", "error"); return; }
+        if (spRunning) { spLog("A regular run is already in progress.", "error"); return; }
+
+        const from = +document.getElementById("spBatchFrom").value;
+        const to = Math.min(+document.getElementById("spBatchTo").value, spSites.length - 1);
+        const batchSize = Math.max(1, +document.getElementById("spBatchSize").value || 5);
+        const entityDelay = +document.getElementById("spBatchEntityDelay").value || 2;
+        const batchDelayMin = +document.getElementById("spBatchDelay").value || 45;
+
+        if (from > to || from >= spSites.length) { spLog("Invalid From/To range!", "error"); return; }
+
+        // Build list of indices
+        const allIdxs = [];
+        for (let i = from; i <= to; i++) {
+          if (spSites[i] && spSites[i].entity_id) allIdxs.push(i);
+        }
+        if (allIdxs.length === 0) { spLog("No valid entities in range.", "error"); return; }
+
+        // Split into batches
+        const batches = [];
+        for (let i = 0; i < allIdxs.length; i += batchSize) {
+          batches.push(allIdxs.slice(i, i + batchSize));
+        }
+
+        spBatchRunning = true;
+        spBatchShouldStop = false;
+        spBatchPaused = false;
+        // Also set the regular sp flags so spRunRow respects pause/stop
+        spRunning = true;
+        spShouldStop = false;
+        spPaused = false;
+        spBatchSetUI(true);
+
+        spLog(`Batch Run: ${allIdxs.length} entities in ${batches.length} batch(es) of ${batchSize}, entity delay ${entityDelay}s, batch delay ${batchDelayMin}min`, "info");
+
+        for (let b = 0; b < batches.length; b++) {
+          if (spBatchShouldStop) { spLog("Batch run stopped by user", "error"); break; }
+
+          // Wait if paused
+          while (spBatchPaused && !spBatchShouldStop) {
+            spBatchStatusText("⏸ Paused");
+            await spSleep(300);
+          }
+          if (spBatchShouldStop) { spLog("Batch run stopped by user", "error"); break; }
+
+          const batch = batches[b];
+          spLog(`━━━ Batch ${b + 1}/${batches.length}: rows ${batch[0]}–${batch[batch.length - 1]} (${batch.length} entities) ━━━`, "info");
+          spBatchStatusText(`Running batch ${b + 1}/${batches.length}...`);
+
+          // Process each entity in the batch sequentially with entityDelay
+          for (let j = 0; j < batch.length; j++) {
+            if (spBatchShouldStop) break;
+
+            // Wait if paused
+            while (spBatchPaused && !spBatchShouldStop) {
+              spBatchStatusText("⏸ Paused");
+              await spSleep(300);
+            }
+            if (spBatchShouldStop) break;
+
+            const idx = batch[j];
+            spLog(`[Batch ${b + 1}] Entity ${j + 1}/${batch.length} (row ${idx})`, "info");
+            await spRunRow(idx);
+
+            // Entity delay (within batch) — skip after last entity in batch
+            if (j < batch.length - 1 && !spBatchShouldStop) {
+              spLog(`Waiting ${entityDelay}s before next entity...`, "info");
+              await spSleep(entityDelay * 1000);
+            }
+          }
+
+          // Batch delay — skip after last batch
+          if (b < batches.length - 1 && !spBatchShouldStop) {
+            const batchDelaySec = batchDelayMin * 60;
+            spLog(`Batch ${b + 1}/${batches.length} complete. Waiting ${batchDelayMin} minutes before next batch...`, "info");
+            spBatchStartCountdown(batchDelaySec, b + 1, batches.length);
+
+            // Wait in small increments so we can respond to stop/pause
+            for (let elapsed = 0; elapsed < batchDelaySec && !spBatchShouldStop; elapsed++) {
+              while (spBatchPaused && !spBatchShouldStop) {
+                if (spBatchCountdownTimer) { clearInterval(spBatchCountdownTimer); spBatchCountdownTimer = null; }
+                spBatchStatusText("⏸ Paused (between batches)");
+                await spSleep(300);
+              }
+              await spSleep(1000);
+            }
+            if (spBatchCountdownTimer) { clearInterval(spBatchCountdownTimer); spBatchCountdownTimer = null; }
+          }
+        }
+
+        spBatchRunning = false;
+        spRunning = false;
+        spBatchSetUI(false);
+        spSetRunningUI(false);
+        spLog("Batch run completed", "success");
+      });
+
+      document.getElementById("spBatchPauseBtn").addEventListener("click", () => {
+        spBatchPaused = true;
+        spPaused = true; // Also pause the inner spRunRow
+        document.getElementById("spBatchPauseBtn").style.display = "none";
+        document.getElementById("spBatchResumeBtn").style.display = "inline-flex";
+        spLog("Batch pause requested", "info");
+      });
+
+      document.getElementById("spBatchResumeBtn").addEventListener("click", () => {
+        spBatchPaused = false;
+        spPaused = false;
+        document.getElementById("spBatchResumeBtn").style.display = "none";
+        document.getElementById("spBatchPauseBtn").style.display = "inline-flex";
+        spBatchStatusText("Resuming...");
+        spLog("Batch resumed", "info");
+      });
+
+      document.getElementById("spBatchStopBtn").addEventListener("click", () => {
+        spBatchShouldStop = true;
+        spShouldStop = true;
+        spBatchPaused = false;
+        spPaused = false;
+        spLog("Batch stop requested — aborting", "error");
+      });
+
+      // Persist batch config inputs
+      ["spBatchFrom", "spBatchTo", "spBatchSize", "spBatchEntityDelay", "spBatchDelay"].forEach((id) => {
+        document.getElementById(id).addEventListener("input", spSave);
+      });
 
       // Initial render of service tab
       spRender();
