@@ -1551,10 +1551,14 @@ WHERE ww.url NOT ILIKE '%zoca.ai%'
           fail("categories", r.error || "unknown");
           return;
         }
-        const catCount = r.count || 0;
+        const categories = r.categories || [];
+        const catCount = categories.length;
+        // Extract all category IDs and all service IDs across categories
+        const specificCategories = categories.map(c => c.id || c.categoryId).filter(Boolean);
+        const specificServices = categories.flatMap(c => (c.services || []).map(s => s.id || s.serviceId)).filter(Boolean);
         s.categoryCount = catCount;
         mark("categories", catCount > 0 ? "success" : "failed");
-        spLog(`[${idx}] ${short} found ${catCount} categories`, catCount > 0 ? "info" : "error");
+        spLog(`[${idx}] ${short} found ${catCount} categories, ${specificServices.length} services`, catCount > 0 ? "info" : "error");
         if (catCount === 0) {
           fail("categories", "no categories found");
           return;
@@ -1567,12 +1571,13 @@ WHERE ww.url NOT ILIKE '%zoca.ai%'
         }
 
         // 2. Generate website with multipager
-        spLog(`[${idx}] ${short} → 2. generate multipager (minCategoryPages: ${catCount})`, "info");
+        spLog(`[${idx}] ${short} → 2. generate multipager (${catCount} categories, ${specificServices.length} services)`, "info");
         mark("generate", "running");
         r = await spLocal("generate-multipager", "/api/sp/generate-multipager", {
           entityId: eid,
           apiKey,
-          minCategoryPages: catCount,
+          specificCategories,
+          specificServices,
           internalUrl,
         });
         if (!r.success) {

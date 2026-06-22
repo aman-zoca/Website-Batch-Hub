@@ -1049,7 +1049,7 @@ app.post("/api/sp/categories", async (req, res) => {
 
 // Generate website with multipager (used by the new SP flow)
 app.post("/api/sp/generate-multipager", async (req, res) => {
-  const { entityId, apiKey, minCategoryPages, internalUrl } = req.body;
+  const { entityId, apiKey, specificCategories, specificServices, internalUrl } = req.body;
   if (!entityId || !apiKey) {
     return res.status(400).json({ success: false, error: "entityId and apiKey are required" });
   }
@@ -1071,7 +1071,7 @@ app.post("/api/sp/generate-multipager", async (req, res) => {
           entityId,
           pagesToBuild: [],
           shouldGenerateStaticBuild: true,
-          multipager: { minCategoryPages: minCategoryPages || 3 },
+          multipager: { specificCategories: specificCategories || [], specificServices: specificServices || [] },
         }),
       }
     );
