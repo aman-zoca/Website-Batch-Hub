@@ -492,31 +492,20 @@
           <!-- Auth section -->
           <div class="control-section control-section-teal">
             <span class="section-label section-label-teal">Auth</span>
-            <label>Base URL: <input type="text" id="spBaseUrl" value="https://api.mononest.dev" style="width: 200px;" /></label>
+            <label>API URL: <input type="text" id="spApiUrl" value="https://api.zoca.ai" style="width: 200px;" /></label>
+            <label>Internal URL: <input type="text" id="spInternalUrl" value="https://internal.zoca.ai" style="width: 220px;" /></label>
             <label>x-api-key: <input type="text" id="spApiKey" placeholder="zoca_..." style="width: 160px;" /></label>
-            <label>Metabase session: <input type="text" id="spMetaSession" value="aa16d652-efe3-464d-baf7-bff30d9d7d6c" style="width: 200px;" /></label>
-            <label>Metabase env:
-              <select id="spMetaUrl" style="width: 180px;">
-                <option value="https://metabase.mononest.dev" data-db="6">Dev (mononest.dev)</option>
-                <option value="https://metabase.zoca.ai" data-db="2">Prod (zoca.ai)</option>
-              </select>
-            </label>
-            <label>MB DB: <input type="number" id="spDatabase" value="6" min="1" style="width: 60px;" /></label>
-            <label>Content type: <input type="text" id="spContentType" value="CATEGORY_PAGE" style="width: 130px;" /></label>
-            <label title="Override the per-quarter category-page cap (backend default 13). Leave blank to use the default."> Max cat pages: <input type="number" id="spMaxCatPages" min="1" placeholder="13" style="width: 60px;" /></label>
           </div>
 
           <!-- Run section -->
           <div class="control-section control-section-amber">
             <span class="section-label section-label-amber">Run</span>
-            <label>Delay (s): <input type="number" id="spDelay" value="20" min="0" step="5" /></label>
+            <label>Delay (s): <input type="number" id="spDelay" value="2" min="0" step="1" /></label>
             <label>From: <input type="number" id="spFrom" value="0" min="0" /></label>
             <label>To: <input type="number" id="spTo" value="0" min="0" /></label>
-            <label title="Force-publish items after generation"><input type="checkbox" id="spDoPublish" checked /> Publish</label>
             <label title="Log full API responses in the Logs panel"><input type="checkbox" id="spLogResp" checked /> Log responses</label>
             <button class="btn btn-green" id="spRunRangeBtn">Run All</button>
             <button class="btn btn-green" id="spRunCheckedBtn">Run Checked</button>
-            <button class="btn btn-blue" id="spPublishCheckedBtn" title="Metabase fetch + parallel publish (skip activate/plan/gen-all) for checked rows">Publish Checked</button>
             <button class="btn btn-gray" id="spPauseBtn" style="display: none" title="Pause before the next API call">⏸ Pause</button>
             <button class="btn btn-green" id="spResumeBtn" style="display: none" title="Resume from where it paused">▶ Resume</button>
             <button class="btn btn-red" id="spStopBtn" style="display: none" title="Abort the run">⏹ Stop</button>
@@ -553,11 +542,8 @@
                 <th>Website ID</th>
                 <th>Subdomain</th>
                 <th>Rank</th>
-                <th>1. Activate</th>
-                <th>2. Plan</th>
-                <th>3. Gen-All</th>
-                <th>4. Items (MB)</th>
-                <th>5. Published</th>
+                <th>1. Categories</th>
+                <th>2. Generate</th>
               </tr>
             </thead>
             <tbody id="spTableBody"></tbody>
@@ -1374,16 +1360,12 @@ WHERE ww.url NOT ILIKE '%zoca.ai%'
           SP_KEY,
           JSON.stringify({
             spSites,
-            baseUrl: document.getElementById("spBaseUrl").value,
+            apiUrl: document.getElementById("spApiUrl").value,
+            internalUrl: document.getElementById("spInternalUrl").value,
             apiKey: document.getElementById("spApiKey").value,
-            metaSession: document.getElementById("spMetaSession").value,
-            metaUrl: document.getElementById("spMetaUrl").value,
-            database: +document.getElementById("spDatabase").value,
-            contentType: document.getElementById("spContentType").value,
             delay: +document.getElementById("spDelay").value,
             from: +document.getElementById("spFrom").value,
             to: +document.getElementById("spTo").value,
-            doPublish: document.getElementById("spDoPublish").checked,
             batchFrom: +document.getElementById("spBatchFrom").value,
             batchTo: +document.getElementById("spBatchTo").value,
             batchSize: +document.getElementById("spBatchSize").value,
@@ -1399,16 +1381,12 @@ WHERE ww.url NOT ILIKE '%zoca.ai%'
         try {
           const d = JSON.parse(spSaved);
           spSites = d.spSites || [];
-          if (d.baseUrl) document.getElementById("spBaseUrl").value = d.baseUrl;
+          if (d.apiUrl) document.getElementById("spApiUrl").value = d.apiUrl;
+          if (d.internalUrl) document.getElementById("spInternalUrl").value = d.internalUrl;
           if (d.apiKey) document.getElementById("spApiKey").value = d.apiKey;
-          if (d.metaSession) document.getElementById("spMetaSession").value = d.metaSession;
-          if (d.metaUrl) document.getElementById("spMetaUrl").value = d.metaUrl;
-          if (d.database !== undefined) document.getElementById("spDatabase").value = d.database;
-          if (d.contentType) document.getElementById("spContentType").value = d.contentType;
           if (d.delay !== undefined) document.getElementById("spDelay").value = d.delay;
           if (d.from !== undefined) document.getElementById("spFrom").value = d.from;
           if (d.to !== undefined) document.getElementById("spTo").value = d.to;
-          if (d.doPublish !== undefined) document.getElementById("spDoPublish").checked = d.doPublish;
           if (d.batchFrom !== undefined) document.getElementById("spBatchFrom").value = d.batchFrom;
           if (d.batchTo !== undefined) document.getElementById("spBatchTo").value = d.batchTo;
           if (d.batchSize !== undefined) document.getElementById("spBatchSize").value = d.batchSize;
@@ -1429,15 +1407,12 @@ WHERE ww.url NOT ILIKE '%zoca.ai%'
         const tbody = document.getElementById("spTableBody");
         tbody.innerHTML = spSites
           .map((s, i) => {
-            const itemsTxt = s.itemsFound != null ? String(s.itemsFound) : s.steps?.items || "-";
-            const pubTxt =
-              s.publishedCount != null ? `${s.publishedCount}/${s.itemsFound ?? "?"}` : s.steps?.publish || "-";
+            const catTxt = s.categoryCount != null ? `${s.categoryCount} cats` : s.steps?.categories || "-";
             return `
         <tr id="sp-row-${i}" class="${s.status || ""}">
           <td>
             <input type="checkbox" class="sp-check" data-sp-check="${i}" ${s.checked ? "checked" : ""} style="cursor:pointer">
-            <button class="gen-btn ${s.status ? "gen-" + s.status : ""}" data-sp-run="${i}" title="Full pipeline: activate → plan → gen-all → metabase → publish">▶</button>
-            <button class="action-btn" data-sp-pub="${i}" title="Publish only: metabase fetch + parallel publish">📤</button>
+            <button class="gen-btn ${s.status ? "gen-" + s.status : ""}" data-sp-run="${i}" title="Fetch categories → generate multipager">▶</button>
           </td>
           <td>${i}</td>
           <td>${s.status || "pending"}</td>
@@ -1445,11 +1420,8 @@ WHERE ww.url NOT ILIKE '%zoca.ai%'
           <td title="${s.website_id || ""}"><button class="action-btn" data-sp-copy="${s.website_id || ""}" title="Copy website_id">📋</button> ${s.website_id || ""}</td>
           <td title="${s.subdomain || ""}">${s.subdomain || ""}</td>
           <td>${s.rank ?? ""}</td>
-          ${spStepCell(s.steps?.activate)}
-          ${spStepCell(s.steps?.plan)}
-          ${spStepCell(s.steps?.genall)}
-          <td class="step-${s.steps?.items || ""}">${itemsTxt}</td>
-          <td class="step-${s.steps?.publish || ""}">${pubTxt}</td>
+          <td class="step-${s.steps?.categories || ""}">${catTxt}</td>
+          ${spStepCell(s.steps?.generate)}
         </tr>`;
           })
           .join("");
@@ -1494,42 +1466,7 @@ WHERE ww.url NOT ILIKE '%zoca.ai%'
         div.scrollTop = div.scrollHeight;
       }
 
-      function spHeaders(extra) {
-        return Object.assign({ accept: "application/json", "ngrok-skip-browser-warning": "true" }, extra || {});
-      }
-
-      // Call the mononest API directly from the browser (same shape as the curl).
-      // Returns { success, status, data|error } and logs the full response.
-      async function spDirect(label, method, url, headers, body) {
-        let result;
-        try {
-          const opts = { method, headers };
-          if (body !== undefined) opts.body = JSON.stringify(body);
-          const res = await fetch(url, opts);
-          const status = res.status;
-          let data;
-          try {
-            data = await res.json();
-          } catch (e) {
-            data = await res.text();
-          }
-          const ok = status >= 200 && status < 300;
-          result = ok
-            ? { success: true, status, data }
-            : {
-                success: false,
-                status,
-                error: `HTTP ${status}: ${typeof data === "string" ? data : JSON.stringify(data)}`,
-                data,
-              };
-        } catch (e) {
-          result = { success: false, status: 0, error: `${e.message} (possible CORS/network block calling ${url})` };
-        }
-        if (document.getElementById("spLogResp")?.checked) spLogResp(label, result);
-        return result;
-      }
-
-      // POST to our local server (used for the Metabase proxy) and log the full response.
+      // POST to our local server proxy and log the full response.
       async function spLocal(label, path, payload) {
         let result;
         try {
@@ -1544,49 +1481,6 @@ WHERE ww.url NOT ILIKE '%zoca.ai%'
         }
         if (document.getElementById("spLogResp")?.checked) spLogResp(label, result);
         return result;
-      }
-
-      // Query Metabase (via local proxy) for this entity's item ids.
-      async function spFetchMetabaseItems(eid) {
-        const session = document.getElementById("spMetaSession").value.trim();
-        const contentType = document.getElementById("spContentType").value.trim() || "CATEGORY_PAGE";
-        const metabaseUrl = document.getElementById("spMetaUrl").value.trim();
-        const database = +document.getElementById("spDatabase").value || undefined;
-        if (!session) return { success: false, error: "Set the Metabase session token first." };
-        return spLocal("metabase", "/api/sp/metabase", { session, entityId: eid, contentType, metabaseUrl, database });
-      }
-
-      // Force-publish every item in ONE batch job via force-all-category-pages.
-      // Sends all itemIds in a single call; the backend filters/skips and enqueues one
-      // generate-multipager job. Returns the count queued.
-      async function spPublishAll(idx, baseUrl, eid, apiKey, items) {
-        const itemIds = items.map((it) => it.id).filter(Boolean);
-        if (!itemIds.length) return 0;
-        const r = await spDirect(
-          "force-all-category-pages",
-          "POST",
-          `${baseUrl}/content-queue/${eid}/items/force-all-category-pages`,
-          spHeaders({ "x-api-key": apiKey, "content-type": "application/json" }),
-          { itemIds }
-        );
-        if (!r.success) {
-          spLog(`[${idx}] batch publish failed: ${r.error}`, "error");
-          return 0;
-        }
-        // Unwrap the API envelope { status, message, data: {...}, code }.
-        const d = (r.data && r.data.data) || r.data || {};
-        const queued = Array.isArray(d.queuedItemIds) ? d.queuedItemIds.length : d.queued ?? 0;
-        const skipped = Array.isArray(d.skipped) ? d.skipped.length : d.skipped ?? 0;
-        spLog(
-          `[${idx}] batch publish → job ${d.jobId ?? "?"}, queued ${queued}, skipped ${skipped} (of ${d.total ?? itemIds.length})`,
-          "info"
-        );
-        if (Array.isArray(d.skipped)) {
-          d.skipped.forEach((s) =>
-            spLog(`[${idx}]   skipped ${(s.itemId || "").slice(0, 8)}: ${s.reason || "?"}`, "info")
-          );
-        }
-        return queued;
       }
 
       const spSleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -1614,19 +1508,13 @@ WHERE ww.url NOT ILIKE '%zoca.ai%'
       }
 
       // Run the full pipeline for one entity row.
+      // New flow: 1. fetch categories → 2. generate website with multipager
       async function spRunRow(idx) {
-        const baseUrl = document.getElementById("spBaseUrl").value.trim().replace(/\/+$/, "");
-        const apiKey = document.getElementById("spApiKey").value.trim();
-        const delay = +document.getElementById("spDelay").value || 20;
-        const doPublish = document.getElementById("spDoPublish").checked;
+        const delay = +document.getElementById("spDelay").value || 2;
 
         const s = spSites[idx];
         if (!s || !s.entity_id) {
           spLog(`[${idx}] No entity_id for this row`, "error");
-          return;
-        }
-        if (!apiKey) {
-          spLog("Set x-api-key (zoca_...) first.", "error");
           return;
         }
 
@@ -1634,8 +1522,7 @@ WHERE ww.url NOT ILIKE '%zoca.ai%'
         const short = eid.slice(0, 8);
         s.status = "running";
         s.steps = {};
-        s.itemsFound = null;
-        s.publishedCount = null;
+        s.categoryCount = null;
         spRender();
         document.getElementById(`sp-row-${idx}`)?.scrollIntoView({ block: "center" });
 
@@ -1651,99 +1538,52 @@ WHERE ww.url NOT ILIKE '%zoca.ai%'
           spSave();
         };
 
-        // 1. Activate
-        spLog(`[${idx}] ${short} → 1. activate`, "info");
-        mark("activate", "running");
-        let r = await spDirect("activate", "POST", `${baseUrl}/content-queue/${eid}/activate`, spHeaders({ "x-api-key": apiKey }));
+        const apiUrl = document.getElementById("spApiUrl").value.trim().replace(/\/+$/, "");
+        const internalUrl = document.getElementById("spInternalUrl").value.trim().replace(/\/+$/, "");
+
+        // 1. Fetch categories
+        spLog(`[${idx}] ${short} → 1. fetching categories`, "info");
+        mark("categories", "running");
+        const apiKey = document.getElementById("spApiKey").value.trim();
+        let r = await spLocal("categories", "/api/sp/categories", { entityId: eid, apiUrl, apiKey });
         if (!r.success) {
-          mark("activate", "failed");
-          fail("activate", r.error || "unknown");
+          mark("categories", "failed");
+          fail("categories", r.error || "unknown");
           return;
         }
-        mark("activate", "success");
-        await spInterStep(idx, delay * 1000, "before plan");
+        const catCount = r.count || 0;
+        s.categoryCount = catCount;
+        mark("categories", catCount > 0 ? "success" : "failed");
+        spLog(`[${idx}] ${short} found ${catCount} categories`, catCount > 0 ? "info" : "error");
+        if (catCount === 0) {
+          fail("categories", "no categories found");
+          return;
+        }
+
+        await spInterStep(idx, delay * 1000, "before generate");
         if (spShouldStop) {
           fail("(stopped)", "stopped by user");
           return;
         }
 
-        // 2. Plan
-        spLog(`[${idx}] ${short} → 2. plan/generate`, "info");
-        mark("plan", "running");
-        // Optional override for the backend's per-quarter category-page cap
-        // (default 13). Only appended when a positive value is entered, so blank
-        // input preserves the backend default and stays compatible with backends
-        // that don't yet support the param.
-        const spMaxCatPages = parseInt(document.getElementById("spMaxCatPages")?.value, 10);
-        const spPlanQuery = spMaxCatPages > 0 ? `?maxCategoryPages=${spMaxCatPages}` : "";
-        r = await spDirect("plan/generate", "POST", `${baseUrl}/content-queue/${eid}/plan/generate${spPlanQuery}`, spHeaders({ "x-api-key": apiKey }));
+        // 2. Generate website with multipager
+        spLog(`[${idx}] ${short} → 2. generate multipager (minCategoryPages: ${catCount})`, "info");
+        mark("generate", "running");
+        r = await spLocal("generate-multipager", "/api/sp/generate-multipager", {
+          entityId: eid,
+          apiKey,
+          minCategoryPages: catCount,
+          internalUrl,
+        });
         if (!r.success) {
-          mark("plan", "failed");
-          fail("plan", r.error || "unknown");
+          mark("generate", "failed");
+          fail("generate", r.error || "unknown");
           return;
         }
-        mark("plan", "success");
-        await spInterStep(idx, delay * 1000, "before generate-all");
-        if (spShouldStop) {
-          fail("(stopped)", "stopped by user");
-          return;
-        }
+        mark("generate", "success");
 
-        // 3. Generate-all (async)
-        spLog(`[${idx}] ${short} → 3. generate-all`, "info");
-        mark("genall", "running");
-        r = await spDirect("generate-all", "POST", `${baseUrl}/content-queue/${eid}/generate-all`, spHeaders({ "x-api-key": apiKey }));
-        if (!r.success) {
-          mark("genall", "failed");
-          fail("generate-all", r.error || "unknown");
-          return;
-        }
-        mark("genall", "success");
-
-        // 4. Metabase — fetch the real item ids for this entity
-        await spInterStep(idx, delay * 1000, "before metabase fetch");
-        if (spShouldStop) {
-          fail("(stopped)", "stopped by user");
-          return;
-        }
-        spLog(`[${idx}] ${short} → 4. metabase items`, "info");
-        mark("items", "running");
-        const mb = await spFetchMetabaseItems(eid);
-        if (!mb.success) {
-          mark("items", "failed");
-          fail("metabase", mb.error || "unknown");
-          return;
-        }
-        const items = mb.items || [];
-        s.itemsFound = items.length;
-        mark("items", items.length > 0 ? "success" : "failed");
-        spLog(`[${idx}] ${short} metabase returned ${items.length} item(s)`, items.length ? "info" : "error");
-
-        // 5. Force-publish all items in parallel
-        if (doPublish && items.length) {
-          await spWaitIfPaused(idx, "before publish");
-          if (spShouldStop) {
-            fail("(stopped)", "stopped by user");
-            return;
-          }
-          spLog(`[${idx}] ${short} → 5. batch publishing ${items.length} item(s) in one job`, "info");
-          mark("publish", "running");
-          const pub = await spPublishAll(idx, baseUrl, eid, apiKey, items);
-          s.publishedCount = pub;
-          mark("publish", pub > 0 ? "success" : "failed");
-        }
-
-        const ok =
-          s.steps.activate === "success" &&
-          s.steps.plan === "success" &&
-          s.steps.genall === "success" &&
-          s.itemsFound > 0 &&
-          (!doPublish || s.publishedCount > 0);
-        s.status = ok ? "success" : "failed";
-        spLog(
-          `[${idx}] ${short} DONE — items:${s.itemsFound}, published:${s.publishedCount ?? "-"}`,
-          ok ? "success" : "error"
-        );
+        s.status = "success";
+        spLog(`[${idx}] ${short} DONE — ${catCount} categories, generate triggered`, "success");
         spRender();
         spUpdateStats();
         spSave();
@@ -1753,7 +1593,7 @@ WHERE ww.url NOT ILIKE '%zoca.ai%'
       async function spSequence(idxs, worker, verb) {
         const apiKey = document.getElementById("spApiKey").value.trim();
         if (!apiKey) {
-          spLog("Set x-api-key (zoca_...) first.", "error");
+          spLog("Set x-api-key first.", "error");
           return;
         }
         if (idxs.length === 0) {
@@ -1782,76 +1622,6 @@ WHERE ww.url NOT ILIKE '%zoca.ai%'
       }
 
       const spRunSequence = (idxs) => spSequence(idxs, spRunRow, "Starting pipeline for");
-      const spPublishSequence = (idxs) => spSequence(idxs, spPublishOnly, "Publishing (metabase) for");
-
-      // Publish-only: metabase fetch + parallel publish (skips activate/plan/gen-all).
-      async function spPublishOnly(idx) {
-        const baseUrl = document.getElementById("spBaseUrl").value.trim().replace(/\/+$/, "");
-        const apiKey = document.getElementById("spApiKey").value.trim();
-        const s = spSites[idx];
-        if (!s || !s.entity_id) {
-          spLog(`[${idx}] No entity_id for this row`, "error");
-          return;
-        }
-        const eid = s.entity_id;
-        const short = eid.slice(0, 8);
-        s.status = "running";
-        s.steps = s.steps || {};
-        s.itemsFound = null;
-        s.publishedCount = null;
-        spRender();
-        document.getElementById(`sp-row-${idx}`)?.scrollIntoView({ block: "center" });
-
-        await spWaitIfPaused(idx, "before metabase fetch");
-        if (spShouldStop) {
-          s.status = "failed";
-          spRender();
-          return;
-        }
-
-        spLog(`[${idx}] ${short} → metabase items`, "info");
-        s.steps.items = "running";
-        spRender();
-        const mb = await spFetchMetabaseItems(eid);
-        if (!mb.success) {
-          s.steps.items = "failed";
-          s.status = "failed";
-          spLog(`[${idx}] ${short} metabase FAILED: ${mb.error}`, "error");
-          spRender();
-          spUpdateStats();
-          spSave();
-          return;
-        }
-        const items = mb.items || [];
-        s.itemsFound = items.length;
-        s.steps.items = items.length > 0 ? "success" : "failed";
-        spLog(`[${idx}] ${short} metabase returned ${items.length} item(s)`, items.length ? "info" : "error");
-        spRender();
-
-        if (items.length) {
-          await spWaitIfPaused(idx, "before publish");
-          if (spShouldStop) {
-            s.status = "failed";
-            spRender();
-            return;
-          }
-          spLog(`[${idx}] ${short} publishing ${items.length} item(s) in parallel`, "info");
-          s.steps.publish = "running";
-          spRender();
-          const pub = await spPublishAll(idx, baseUrl, eid, apiKey, items);
-          s.publishedCount = pub;
-          s.steps.publish = pub > 0 ? "success" : "failed";
-        }
-
-        s.status = s.itemsFound > 0 && s.publishedCount > 0 ? "success" : "failed";
-        spLog(
-          `[${idx}] ${short} PUBLISH DONE — items:${s.itemsFound}, published:${s.publishedCount ?? "-"}`,
-          s.status === "success" ? "success" : "error"
-        );
-        spRender();
-        spUpdateStats();
-        spSave();
-      }
 
       // File import (entity_id, website_id, completed_rank_extractions)
       document.getElementById("spFileInput").addEventListener("change", (e) => {
@@ -1922,19 +1692,6 @@ WHERE ww.url NOT ILIKE '%zoca.ai%'
         spRunSequence(idxs);
       });
 
-      // Publish Checked — metabase fetch + parallel publish only (skip activate/plan/gen-all)
-      document.getElementById("spPublishCheckedBtn").addEventListener("click", () => {
-        const idxs = [];
-        spSites.forEach((s, i) => {
-          if (s.checked && s.entity_id) idxs.push(i);
-        });
-        if (idxs.length === 0) {
-          spLog("No rows checked!", "error");
-          return;
-        }
-        spPublishSequence(idxs);
-      });
-
       // Pause — hold before the next API call (where the API is hitting)
       document.getElementById("spPauseBtn").addEventListener("click", () => {
         spPaused = true;
@@ -1989,7 +1746,7 @@ WHERE ww.url NOT ILIKE '%zoca.ai%'
 
       // Export
       document.getElementById("spExportBtn").addEventListener("click", () => {
-        const headers = ["entity_id", "website_id", "subdomain", "rank", "status", "activate", "plan", "genall", "items_found", "published"];
+        const headers = ["entity_id", "website_id", "subdomain", "rank", "status", "categories", "generate"];
         const csv = [headers.join(",")];
         spSites.forEach((s) => {
           csv.push(
@@ -1999,11 +1756,8 @@ WHERE ww.url NOT ILIKE '%zoca.ai%'
               s.subdomain || "",
               s.rank ?? "",
               s.status || "",
-              s.steps?.activate || "",
-              s.steps?.plan || "",
-              s.steps?.genall || "",
-              s.itemsFound ?? "",
-              s.publishedCount ?? "",
+              s.categoryCount ?? "",
+              s.steps?.generate || "",
             ].join(",")
           );
         });
@@ -2031,15 +1785,6 @@ WHERE ww.url NOT ILIKE '%zoca.ai%'
           spSites[+cb.dataset.spCheck].checked = cb.checked;
           return;
         }
-        const pubBtn = e.target.closest("[data-sp-pub]");
-        if (pubBtn) {
-          if (spRunning) {
-            spLog("A run is already in progress.", "error");
-            return;
-          }
-          spPublishSequence([+pubBtn.dataset.spPub]);
-          return;
-        }
         const runBtn = e.target.closest("[data-sp-run]");
         if (runBtn) {
           if (spRunning) {
@@ -2050,18 +1795,10 @@ WHERE ww.url NOT ILIKE '%zoca.ai%'
         }
       });
 
-      // Switching Metabase env auto-fills the matching DB id (from the option's data-db).
-      document.getElementById("spMetaUrl").addEventListener("change", (e) => {
-        const opt = e.target.selectedOptions[0];
-        if (opt && opt.dataset.db) document.getElementById("spDatabase").value = opt.dataset.db;
-        spSave();
-      });
-
       // Persist config inputs on change
-      ["spBaseUrl", "spApiKey", "spMetaSession", "spContentType", "spDatabase", "spDelay", "spFrom", "spTo"].forEach((id) => {
+      ["spApiUrl", "spInternalUrl", "spApiKey", "spDelay", "spFrom", "spTo"].forEach((id) => {
         document.getElementById(id).addEventListener("input", spSave);
       });
-      document.getElementById("spDoPublish").addEventListener("change", spSave);
 
       // ===================================================================
       // Batch Run — process entities in batches with long delays between

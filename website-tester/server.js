@@ -1015,6 +1015,79 @@ app.post("/api/sp/metabase", async (req, res) => {
 });
 
 // Health check
+// Fetch categories for an entity (used by the new SP flow)
+app.post("/api/sp/categories", async (req, res) => {
+  const { entityId, apiUrl, apiKey } = req.body;
+  if (!entityId || !apiKey) {
+    return res.status(400).json({ success: false, error: "entityId and apiKey are required" });
+  }
+  const base = (apiUrl || "https://api.zoca.ai").replace(/\/+$/, "");
+  const headers = {
+    accept: "*/*",
+    "x-api-key": apiKey,
+    "ngrok-skip-browser-warning": "true",
+    "x-ops-request": "true",
+  };
+  try {
+    const response = await fetch(`${base}/services/${entityId}/categories`, {
+      method: "GET",
+      headers,
+    });
+    const status = response.status;
+    let data;
+    try { data = await response.json(); } catch (e) { data = await response.text(); }
+    if (status >= 200 && status < 300) {
+      const categories = Array.isArray(data) ? data : data?.data || data?.categories || [];
+      res.json({ success: true, categories, count: categories.length });
+    } else {
+      res.json({ success: false, error: `HTTP ${status}: ${typeof data === "string" ? data : JSON.stringify(data)}` });
+    }
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Generate website with multipager (used by the new SP flow)
+app.post("/api/sp/generate-multipager", async (req, res) => {
+  const { entityId, apiKey, minCategoryPages, internalUrl } = req.body;
+  if (!entityId || !apiKey) {
+    return res.status(400).json({ success: false, error: "entityId and apiKey are required" });
+  }
+  const base = (internalUrl || "https://internal.zoca.ai").replace(/\/+$/, "");
+  const headers = {
+    accept: "*/*",
+    "content-type": "application/json",
+    "x-api-key": apiKey,
+    "ngrok-skip-browser-warning": "true",
+    "x-ops-request": "true",
+  };
+  try {
+    const response = await fetch(
+      `${base}/internal/api/v1/website/creation/generate/website/v2`,
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          entityId,
+          pagesToBuild: [],
+          shouldGenerateStaticBuild: true,
+          multipager: { minCategoryPages: minCategoryPages || 3 },
+        }),
+      }
+    );
+    const status = response.status;
+    let data;
+    try { data = await response.json(); } catch (e) { data = await response.text(); }
+    if (status >= 200 && status < 300) {
+      res.json({ success: true, data });
+    } else {
+      res.json({ success: false, error: `HTTP ${status}: ${typeof data === "string" ? data : JSON.stringify(data)}` });
+    }
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
 app.get("/api/health", (req, res) => {
   res.json({ status: "ok" });
 });
