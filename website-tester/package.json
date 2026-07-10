@@ -20,7 +20,10 @@
     "express": "^4.22.1",
     "google-spreadsheet": "^4.1.0",
     "googleapis": "^130.0.0",
-    "puppeteer": "^22.0.0"
+    "multer": "^2.2.0",
+    "pg": "^8.22.0",
+    "puppeteer": "^22.0.0",
+    "xlsx": "^0.18.5"
   },
   "keywords": [
     "testing",
