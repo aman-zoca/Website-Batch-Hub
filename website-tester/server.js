@@ -8,6 +8,7 @@ import * as XLSX from "xlsx";
 import { convertVagaro } from "./converters/vagaro.js";
 import { bundleToSql } from "./converters/sql.js";
 import { makeZip } from "./converters/zip.js";
+import { randomUUID } from "crypto";
 
 // Platform → converter registry. Add new platforms here.
 const CONVERTERS = { vagaro: convertVagaro };
@@ -883,55 +884,93 @@ app.post("/api/test-batch", async (req, res) => {
   }
 });
 
-// Generate website endpoint
-app.post("/api/generate", async (req, res) => {
-  const { entityId, token, pagesToBuild, prod } = req.body;
+// Count an entity's service categories and services via the services API.
+// Returns { categories, services } or { error } — never throws.
+async function countServicePages({ entityId, auth, prod }) {
+  const base = prod ? "https://api.zoca.ai" : "https://api.mononest.dev";
+  try {
+    const response = await fetch(`${base}/services/${entityId}/categories`, {
+      headers: {
+        accept: "*/*",
+        ...auth,
+        "ngrok-skip-browser-warning": "true",
+        "x-ops-request": "true",
+      },
+    });
+    const data = await response.json().catch(() => null);
+    if (!response.ok) return { error: `categories HTTP ${response.status}` };
+    const cats = Array.isArray(data)
+      ? data
+      : data?.data || data?.categories || [];
+    const services = cats.reduce((n, c) => n + (c.services || []).length, 0);
+    return { categories: cats.length, services };
+  } catch (e) {
+    return { error: e.message };
+  }
+}
 
-  if (!entityId || !token) {
+// Generate website endpoint
+//   exact: true  → replicate raft's "generate" curl verbatim: always
+//                  internal.zoca.ai, full site (no pagesToBuild), raft headers.
+//   otherwise    → prod toggle picks host; page checkboxes → pagesToBuild.
+// Auth: a JWT (starts with "eyJ") is sent as `Authorization: Bearer`,
+// anything else (e.g. sk_live_…) as `x-api-key`.
+app.post("/api/generate", async (req, res) => {
+  const { entityId, apiKey, pagesToBuild, prod, exact } = req.body;
+
+  if (!entityId || !apiKey) {
     return res
       .status(400)
-      .json({ success: false, error: "entityId and token are required" });
+      .json({ success: false, error: "entityId and apiKey are required" });
   }
 
-  // Prod (checked) → internal.zoca.ai ; otherwise the dev host.
-  const host = prod ? "internal.zoca.ai" : "internal.mononest.dev";
+  const isProd = exact || prod;
+  const host = isProd ? "internal.zoca.ai" : "internal.mononest.dev";
 
-  // When specific pages are selected we mirror the per-page curl; otherwise
-  // fall back to the full-site generation. Either way we request a static
-  // build so the generated pages actually go live on the deployed site.
-  const pages = Array.isArray(pagesToBuild) ? pagesToBuild.filter(Boolean) : [];
+  const pages = exact
+    ? []
+    : Array.isArray(pagesToBuild)
+    ? pagesToBuild.filter(Boolean)
+    : [];
   const partial = pages.length > 0;
-  const body = partial
-    ? {
-        entityId,
-        pagesToBuild: pages,
-        homeSectionsToUpdate: [],
-        shouldGenerateStaticBuild: true,
-        showLoadingScreen: false,
-      }
-    : {
-        entityId,
-        homeSectionsToUpdate: [],
-        shouldGenerateStaticBuild: true,
-        showLoadingScreen: false,
-      };
+  const body = {
+    entityId,
+    homeSectionsToUpdate: [],
+    ...(partial ? { pagesToBuild: pages } : {}),
+    shouldGenerateStaticBuild: true,
+    showLoadingScreen: false,
+    generationId: randomUUID(),
+    source: "raft",
+  };
+
+  const key = String(apiKey).trim().replace(/^Bearer\s+/i, "");
+  const auth = key.startsWith("eyJ")
+    ? { Authorization: `Bearer ${key}` }
+    : { "x-api-key": key };
 
   try {
     console.log(
-      `\nGenerating website for entity: ${entityId} [${prod ? "PROD" : "DEV"}]${
-        partial ? ` pages=${pages.join(",")}` : " (full site)"
-      }`
+      `\nGenerating website for entity: ${entityId} [${isProd ? "PROD" : "DEV"}]${
+        exact ? " (exact raft curl)" : ""
+      }${partial ? ` pages=${pages.join(",")}` : " (full site)"}`
     );
     const response = await fetch(
       `https://${host}/internal/api/v1/website/creation/generate/website/v2`,
       {
         method: "POST",
         headers: {
-          accept: "*/*",
-          "content-type": "application/json",
-          authorization: `Bearer ${token}`,
+          ...auth,
+          Referer: "https://raft.zoca.ai/",
+          "sec-ch-ua-platform": '"macOS"',
+          "sec-ch-ua":
+            '"Not:A-Brand";v="8", "Chromium";v="156", "Google Chrome";v="156"',
+          "sec-ch-ua-mobile": "?0",
+          "x-source": "raft",
           "ngrok-skip-browser-warning": "true",
           "x-ops-request": "true",
+          "User-Agent":
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36",
+          "Content-Type": "application/json",
         },
         body: JSON.stringify(body),
       }
@@ -948,7 +987,18 @@ app.post("/api/generate", async (req, res) => {
     console.log(`  Generate response: ${status}`, data);
 
     if (status >= 200 && status < 300) {
-      res.json({ success: true, data });
+      // The generate API doesn't report a page count, so for full-site runs
+      // count the entity's categories/services (best effort, never fails).
+      const counts = partial
+        ? null
+        : await countServicePages({ entityId, auth, prod: isProd });
+      res.json({
+        success: true,
+        data,
+        pageCount: pages.length,
+        jobId: data?.jobId,
+        counts,
+      });
     } else {
       res.json({
         success: false,
