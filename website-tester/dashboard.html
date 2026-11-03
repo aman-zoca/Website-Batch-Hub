@@ -627,8 +627,8 @@
           />
           <input
             type="text"
-            id="authToken"
-            placeholder="Bearer token..."
+            id="apiKey"
+            placeholder="x-api-key or Bearer token..."
             style="
               padding: 6px;
               border: 1px solid #ddd;
@@ -753,6 +753,13 @@
             <button class="btn btn-green" id="genRangeBtn">Generate</button>
             <button class="btn btn-green" id="genCheckedBtn">
               Generate Checked
+            </button>
+            <button
+              class="btn btn-green"
+              id="genAllPagesBtn"
+              title="Sends the exact raft generate curl (internal.zoca.ai, full site) for checked rows, or the From/To range if none are checked. Ignores the page checkboxes and prod toggle."
+            >
+              Generate All Pages
             </button>
             <button class="btn btn-red" id="pauseGenBtn" style="display: none">
               Pause
@@ -1288,8 +1295,8 @@
         document.getElementById("delay").value = data.delay || 2;
         document.getElementById("stepDelay").value = data.stepDelay || 500;
         document.getElementById("parallel").value = data.parallel || 10;
-        if (data.authToken)
-          document.getElementById("authToken").value = data.authToken;
+        if (data.apiKey)
+          document.getElementById("apiKey").value = data.apiKey;
         if (data.genDelay)
           document.getElementById("genDelay").value = data.genDelay;
         if (data.genFrom !== undefined)
@@ -1343,7 +1350,7 @@
             delay: +document.getElementById("delay").value,
             stepDelay: +document.getElementById("stepDelay").value,
             parallel: +document.getElementById("parallel").value,
-            authToken: document.getElementById("authToken").value,
+            apiKey: document.getElementById("apiKey").value,
             genDelay: +document.getElementById("genDelay").value,
             genFrom: +document.getElementById("genFrom").value,
             genTo: +document.getElementById("genTo").value,
@@ -1497,10 +1504,10 @@
         );
       }
 
-      async function generateRow(idx) {
-        const token = document.getElementById("authToken").value.trim();
-        if (!token) {
-          log("No auth token set! Paste your Bearer token first.", "error");
+      async function generateRow(idx, { exact = false } = {}) {
+        const apiKey = document.getElementById("apiKey").value.trim();
+        if (!apiKey) {
+          log("No API key set! Paste your x-api-key first.", "error");
           return;
         }
 
@@ -1521,27 +1528,43 @@
         );
 
         try {
-          const pagesToBuild = getGenPages();
+          const pagesToBuild = exact ? [] : getGenPages();
           const prod = document.getElementById("genProd").checked;
-          const scope = pagesToBuild.length
+          const scope = exact
+            ? "exact raft curl (full site)"
+            : pagesToBuild.length
             ? pagesToBuild.join(",")
             : "full site";
-          log(`[${idx}] → ${prod ? "PROD" : "DEV"} / ${scope}`, "info");
+          log(`[${idx}] → ${exact || prod ? "PROD" : "DEV"} / ${scope}`, "info");
           const res = await fetch("http://localhost:3002/api/generate", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               entityId: site.entity_id,
-              token,
+              apiKey,
               pagesToBuild,
               prod,
+              exact,
             }),
           });
           const data = await res.json();
 
           if (data.success) {
             sites[idx].generate_status = "success";
-            log(`[${idx}] Generate SUCCESS`, "success");
+            const c = data.counts;
+            const detail = data.pageCount
+              ? `${data.pageCount} pages`
+              : c && !c.error
+              ? `~${c.services + c.categories} service pages — ${c.categories} categories + ${c.services} services`
+              : c?.error
+              ? `page count unavailable: ${c.error}`
+              : "";
+            log(
+              `[${idx}] Generate SUCCESS${detail ? ` (${detail})` : ""}${
+                data.jobId ? ` · job ${data.jobId}` : ""
+              }`,
+              "success"
+            );
           } else {
             sites[idx].generate_status = "failed";
             log(
@@ -1988,7 +2011,7 @@
         }
         const genBtn = e.target.closest("[data-gen]");
         if (genBtn) {
-          generateRow(+genBtn.dataset.gen);
+          generateRow(+genBtn.dataset.gen, { exact: true });
           return;
         }
         const copyBtn = e.target.closest("[data-copy]");
@@ -2050,12 +2073,14 @@
       function showGenRunning() {
         document.getElementById("genRangeBtn").style.display = "none";
         document.getElementById("genCheckedBtn").style.display = "none";
+        document.getElementById("genAllPagesBtn").style.display = "none";
         document.getElementById("pauseGenBtn").style.display = "inline-flex";
       }
 
       function showGenStopped() {
         document.getElementById("genRangeBtn").style.display = "inline-flex";
         document.getElementById("genCheckedBtn").style.display = "inline-flex";
+        document.getElementById("genAllPagesBtn").style.display = "inline-flex";
         document.getElementById("pauseGenBtn").style.display = "none";
       }
 
@@ -2063,9 +2088,9 @@
       document
         .getElementById("genRangeBtn")
         .addEventListener("click", async () => {
-          const token = document.getElementById("authToken").value.trim();
-          if (!token) {
-            log("No auth token set! Paste your Bearer token first.", "error");
+          const apiKey = document.getElementById("apiKey").value.trim();
+          if (!apiKey) {
+            log("No API key set! Paste your x-api-key first.", "error");
             return;
           }
 
@@ -2119,9 +2144,9 @@
       document
         .getElementById("genCheckedBtn")
         .addEventListener("click", async () => {
-          const token = document.getElementById("authToken").value.trim();
-          if (!token) {
-            log("No auth token set! Paste your Bearer token first.", "error");
+          const apiKey = document.getElementById("apiKey").value.trim();
+          if (!apiKey) {
+            log("No API key set! Paste your x-api-key first.", "error");
             return;
           }
 
@@ -2169,6 +2194,75 @@
           log("Batch generate completed", "success");
         });
 
+      // Generate All Pages — full-site generation for checked rows,
+      // falling back to the From/To range when nothing is checked.
+      document
+        .getElementById("genAllPagesBtn")
+        .addEventListener("click", async () => {
+          const apiKey = document.getElementById("apiKey").value.trim();
+          if (!apiKey) {
+            log("No API key set! Paste your x-api-key first.", "error");
+            return;
+          }
+
+          let idxs = [];
+          sites.forEach((s, i) => {
+            if (s.gen_checked && s.entity_id) idxs.push(i);
+          });
+          let source = "checked rows";
+          if (idxs.length === 0) {
+            const from = +document.getElementById("genFrom").value;
+            const to = Math.min(
+              +document.getElementById("genTo").value,
+              sites.length - 1
+            );
+            if (from > to || from >= sites.length) {
+              log("No rows checked and From/To range is invalid!", "error");
+              return;
+            }
+            for (let i = from; i <= to; i++) {
+              if (sites[i].entity_id) idxs.push(i);
+            }
+            source = `rows ${from}-${to}`;
+          }
+          if (idxs.length === 0) {
+            log("No rows with an entity_id to generate!", "error");
+            return;
+          }
+
+          genRunning = true;
+          genShouldStop = false;
+          showGenRunning();
+
+          const genDelaySec = +document.getElementById("genDelay").value || 50;
+          log(
+            `Starting ALL-PAGES generate for ${idxs.length} ${source} (${genDelaySec}s delay)`,
+            "info"
+          );
+
+          for (let j = 0; j < idxs.length; j++) {
+            if (genShouldStop) {
+              log("Generation paused by user", "error");
+              break;
+            }
+            const idx = idxs[j];
+            log(
+              `[${idx}] Generating all pages (${j + 1}/${idxs.length})...`,
+              "info"
+            );
+            await generateRow(idx, { exact: true });
+
+            if (j < idxs.length - 1 && !genShouldStop) {
+              log(`Waiting ${genDelaySec}s before next generate...`, "info");
+              await new Promise((r) => setTimeout(r, genDelaySec * 1000));
+            }
+          }
+
+          genRunning = false;
+          showGenStopped();
+          log("All-pages generate completed", "success");
+        });
+
       // Pause Generate
       document.getElementById("pauseGenBtn").addEventListener("click", () => {
         genShouldStop = true;
@@ -2176,7 +2270,7 @@
 
       // Save token on change
       document
-        .getElementById("authToken")
+        .getElementById("apiKey")
         .addEventListener("input", () => save());
 
       // Persist generation page selection + prod toggle on change
