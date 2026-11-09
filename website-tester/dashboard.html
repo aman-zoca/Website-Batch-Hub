@@ -36,6 +36,11 @@
         align-items: center;
         box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
       }
+      /* Column-layout control panels: rows start on the left, not centred. */
+      .controls[style*="flex-direction: column"] {
+        align-items: stretch;
+        text-align: left;
+      }
       .controls label {
         display: flex;
         align-items: center;
@@ -366,6 +371,36 @@
         color: #333;
         font-size: 12px;
       }
+      /* Key fields and dropdowns look like the text inputs. */
+      .control-section input[type="password"],
+      .control-section select {
+        padding: 8px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        background: #fff;
+        color: #333;
+        font-size: 12px;
+        font-family: inherit;
+        line-height: 1.2;
+      }
+      .control-section select {
+        padding-right: 28px;
+        cursor: pointer;
+        appearance: none;
+        -webkit-appearance: none;
+        background-image: linear-gradient(45deg, transparent 50%, #6b7280 50%),
+          linear-gradient(135deg, #6b7280 50%, transparent 50%);
+        background-position: calc(100% - 15px) 50%, calc(100% - 10px) 50%;
+        background-size: 5px 5px, 5px 5px;
+        background-repeat: no-repeat;
+      }
+      .control-section input[type="password"]:focus,
+      .control-section input[type="text"]:focus,
+      .control-section select:focus {
+        outline: none;
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+      }
       .step-running {
         color: #1e40af;
         font-weight: 500;
@@ -597,6 +632,7 @@
         Service Page Generator
       </button>
       <button class="tab-btn" data-tab="tab-migrate">Platform Migration</button>
+      <button class="tab-btn" data-tab="tab-blogs">Regenerate &amp; Publish</button>
     </div>
 
     <div id="tab-tester" class="tab-panel">
@@ -1277,6 +1313,86 @@
       </div>
     </div>
     <!-- /tab-migrate -->
+
+    <div id="tab-blogs" class="tab-panel" style="display: none">
+      <div class="controls" style="flex-direction: column; gap: 10px">
+        <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap">
+          <label class="btn btn-purple">
+            Import CSV
+            <input type="file" id="blFileInput" accept=".csv,.txt" />
+          </label>
+          <button class="btn btn-blue" id="blExportBtn">Export</button>
+          <button class="btn btn-red" id="blClearBtn">Remove All</button>
+          <span style="border-left: 1px solid #ddd; height: 24px"></span>
+          <span class="stat stat-total">Total: <span id="blStatTotal">0</span></span>
+          <span class="stat stat-success">Pass: <span id="blStatSuccess">0</span></span>
+          <span class="stat stat-failed">Fail: <span id="blStatFailed">0</span></span>
+          <span class="stat stat-pending">Pending: <span id="blStatPending">0</span></span>
+        </div>
+        <div style="font-size: 12px; color: #6b7280">
+          <b>Full website</b> = every main page (home, gallery, reviews, booking, generic, team/staff) + every blog post + the blogs listing, like raft's "Generate Website" (category/service pages are the Service Page Generator's job).
+          <b>Blogs only</b> = every active blog post + the blogs listing. <b>Publish</b> = the whole website (raft's "Publish website").
+          CSV needs <code>entity_id</code>, <code>website_id</code>; <code>subdomain</code> shows as a link.
+        </div>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap">
+          <div class="control-section control-section-teal">
+            <span class="section-label section-label-teal">Auth</span>
+            <label><input type="radio" name="blEnv" value="sandbox" /> Sandbox</label>
+            <label><input type="radio" name="blEnv" value="prod" checked /> Prod</label>
+            <label>Internal URL: <input type="text" id="blInternalUrl" value="https://internal.zoca.ai" style="width: 220px" /></label>
+            <label>x-api-key: <input type="password" id="blApiKey" placeholder="sk_live_… or JWT" style="width: 200px" autocomplete="off" /></label>
+            <button class="btn btn-gray" id="blKeyToggle" type="button" title="Show or hide the key">👁 Show</button>
+          </div>
+          <div class="control-section control-section-amber">
+            <span class="section-label section-label-amber">Run</span>
+            <label>Pages:
+              <select id="blScope">
+                <option value="full">Full website (all main pages + blogs)</option>
+                <option value="blogs">Blogs only</option>
+              </select>
+            </label>
+            <label>Action:
+              <select id="blMode">
+                <option value="both">Generate &amp; Publish</option>
+                <option value="generate">Generate only (no publish)</option>
+                <option value="publish">Publish only</option>
+              </select>
+            </label>
+            <label>Delay (s): <input type="number" id="blDelay" value="5" min="0" step="1" /></label>
+            <label title="How often to check a run">Poll (s): <input type="number" id="blPoll" value="15" min="5" step="5" /></label>
+            <label title="Give up waiting on one run after this long">Max wait (min): <input type="number" id="blMaxWait" value="20" min="1" step="1" /></label>
+            <label>From: <input type="number" id="blFrom" value="0" min="0" /></label>
+            <label>To: <input type="number" id="blTo" value="0" min="0" /></label>
+            <button class="btn btn-green" id="blRunBtn">Run All</button>
+            <button class="btn btn-green" id="blRunCheckedBtn">Run Checked</button>
+            <button class="btn btn-gray" id="blPauseBtn" style="display: none">⏸ Pause</button>
+            <button class="btn btn-green" id="blResumeBtn" style="display: none">▶ Resume</button>
+            <button class="btn btn-red" id="blStopBtn" style="display: none">⏹ Stop</button>
+            <button class="btn btn-gray" id="blCheckAllBtn">Check All</button>
+            <button class="btn btn-gray" id="blCheckFailedBtn">Check Failed</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="main">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Run</th><th>#</th><th>Status</th><th>Site</th><th>Entity ID</th><th>Website ID</th>
+                <th>1. Generate</th><th>2. Wait</th><th>3. Publish</th><th>Message</th>
+              </tr>
+            </thead>
+            <tbody id="blBody"></tbody>
+          </table>
+        </div>
+        <div class="logs">
+          <h3>Logs</h3>
+          <div class="logs-content" id="blLogs"></div>
+        </div>
+      </div>
+    </div>
+    <!-- /tab-blogs -->
 
     <script>
       const STORAGE_KEY = "website-tester-data";
@@ -2456,7 +2572,7 @@ WHERE ww.url NOT ILIKE '%zoca.ai%'
           }"><button class="action-btn" data-sp-copy="${
               s.website_id || ""
             }" title="Copy website_id">📋</button> ${s.website_id || ""}</td>
-          <td title="${s.subdomain || ""}">${s.subdomain || ""}</td>
+          <td title="${spEsc(s.subdomain || "")}">${spSiteLink(s.subdomain)}</td>
           <td>${s.rank ?? ""}</td>
           <td class="step-${s.steps?.categories || ""}">${catTxt}</td>
           ${spStepCell(s.steps?.generate)}
@@ -2652,6 +2768,26 @@ WHERE ww.url NOT ILIKE '%zoca.ai%'
         spRender();
         spUpdateStats();
         spSave();
+      }
+
+      // Escapes text for HTML attributes and content.
+      function spEsc(v) {
+        return String(v ?? "")
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;");
+      }
+
+      // The site as a link: a full URL, a host, or a bare zoca subdomain
+      // (name -> https://name.zoca.com). Opens in a new tab.
+      function spSiteLink(value) {
+        const v = String(value || "").trim();
+        if (!v) return "";
+        const host = v.replace(/^https?:\/\//i, "").replace(/\/+$/, "");
+        if (!/^[a-z0-9.-]+$/i.test(host)) return spEsc(v);
+        const url = "https://" + (host.includes(".") ? host : host + ".zoca.com");
+        return `<a href="${spEsc(url)}" target="_blank" rel="noopener noreferrer">${spEsc(host)}</a>`;
       }
 
       // Run a list of row indices sequentially through a worker (with pause support).
@@ -3675,6 +3811,331 @@ limit 20;`;
           mgEl("mgSeedBtn").disabled = false;
         }
       });
+    </script>
+    <script>
+      // ===================================================================
+      // Blogs tab: regenerate blog pages + listing, and/or publish the site.
+      // ===================================================================
+      (function () {
+        const KEY = "batch-hub-blogs";
+        const ENV_URL = { sandbox: "https://internal.mononest.dev", prod: "https://internal.zoca.ai" };
+        const $ = (id) => document.getElementById(id);
+        let sites = [];
+        let running = false;
+        let stopRequested = false;
+        let paused = false;
+
+        const esc = (v) =>
+          String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+        function siteLink(value) {
+          const v = String(value || "").trim();
+          if (!v) return "";
+          const host = v.replace(/^https?:\/\//i, "").replace(/\/+$/, "");
+          if (!/^[a-z0-9.-]+$/i.test(host)) return esc(v);
+          const url = "https://" + (host.includes(".") ? host : host + ".zoca.com");
+          return `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(host)}</a>`;
+        }
+        function log(msg, type = "info") {
+          const div = $("blLogs");
+          div.innerHTML += `<div class="log log-${type}">${new Date().toLocaleTimeString()} - ${esc(msg)}</div>`;
+          div.scrollTop = div.scrollHeight;
+        }
+        const env = () => (document.querySelector('input[name="blEnv"]:checked') || {}).value || "prod";
+        function save() {
+          try {
+            localStorage.setItem(
+              KEY,
+              JSON.stringify({ sites, internalUrl: $("blInternalUrl").value, env: env(), mode: $("blMode").value, scope: $("blScope").value, apiKey: $("blApiKey").value })
+            );
+          } catch (e) {}
+        }
+        function load() {
+          try {
+            const d = JSON.parse(localStorage.getItem(KEY) || "null");
+            if (!d) return;
+            sites = d.sites || [];
+            if (d.env) document.querySelectorAll('input[name="blEnv"]').forEach((r) => (r.checked = r.value === d.env));
+            if (d.internalUrl) $("blInternalUrl").value = d.internalUrl;
+            if (d.mode) $("blMode").value = d.mode;
+            if (d.scope) $("blScope").value = d.scope;
+            if (d.apiKey) $("blApiKey").value = d.apiKey;
+          } catch (e) {}
+        }
+        const stepClass = { done: "step-success", failed: "step-failed", running: "step-running" };
+        const stepCell = (v) => `<td class="${stepClass[v] || ""}">${esc(v || "-")}</td>`;
+        function render() {
+          $("blBody").innerHTML = sites
+            .map(
+              (s, i) => `<tr>
+                <td style="white-space: nowrap"><input type="checkbox" data-bl-check="${i}" ${s.checked ? "checked" : ""}/>
+                  <button class="action-btn" data-bl-play="${i}" title="Run only this site" ${running ? "disabled" : ""}>▶</button></td>
+                <td>${i}</td><td>${esc(s.status)}</td><td>${siteLink(s.subdomain)}</td>
+                <td title="${esc(s.entity_id)}">${esc(s.entity_id)}</td>
+                <td title="${esc(s.website_id)}">${esc(s.website_id)}</td>
+                ${stepCell(s.steps.generate)}${stepCell(s.steps.wait)}${stepCell(s.steps.publish)}
+                <td>${esc(s.message || "")}</td></tr>`
+            )
+            .join("");
+          const n = (st) => sites.filter((s) => s.status === st).length;
+          $("blStatTotal").textContent = sites.length;
+          $("blStatSuccess").textContent = n("done");
+          $("blStatFailed").textContent = n("failed");
+          $("blStatPending").textContent = n("pending");
+        }
+        function parseCsv(text) {
+          const lines = text.split(/\r?\n/).filter((l) => l.trim());
+          if (lines.length < 2) return [];
+          const delim = lines[0].includes("\t") ? "\t" : ",";
+          const headers = lines[0].split(delim).map((h) => h.trim().toLowerCase().replace(/"/g, ""));
+          const out = [];
+          for (const line of lines.slice(1)) {
+            const values = line.split(delim).map((v) => v.trim().replace(/"/g, ""));
+            const row = { steps: {}, status: "pending", checked: false };
+            headers.forEach((h, i) => {
+              const v = values[i] || "";
+              if (h === "entity_id" || h === "entityid") row.entity_id = v;
+              else if (h === "website_id" || h === "websiteid") row.website_id = v;
+              else if (h === "subdomain" || h === "sub_domain" || (h === "domain" && !row.subdomain)) row.subdomain = v;
+            });
+            if (row.entity_id && row.website_id) out.push(row);
+          }
+          return out;
+        }
+        async function post(path, body) {
+          const r = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+          return r.json();
+        }
+        const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+        async function waitIfPaused() {
+          while (paused && !stopRequested) await sleep(500);
+        }
+        const auth = () => ({ apiKey: $("blApiKey").value.trim(), internalUrl: $("blInternalUrl").value.trim() });
+        // Polls a run until it finishes. Returns { ok, status, detail }.
+        async function waitForRun(generationId, label, idx) {
+          const pollMs = Math.max(5, Number($("blPoll").value) || 15) * 1000;
+          const deadline = Date.now() + Math.max(1, Number($("blMaxWait").value) || 20) * 60000;
+          while (Date.now() < deadline) {
+            await waitIfPaused();
+            if (stopRequested) return { ok: false, status: "stopped" };
+            const r = await post("/api/blogs/run", { generationId, ...auth() });
+            if (!r.success) return { ok: false, status: "error", detail: r.error };
+            if (r.found) {
+              const pages = r.pagesTotal != null ? `${r.pagesDone ?? 0}/${r.pagesTotal}` : "";
+              if (["completed", "success", "published"].includes(r.status)) return { ok: true, status: r.status, detail: pages };
+              if (["failed", "error", "cancelled", "canceled"].includes(r.status))
+                return { ok: false, status: r.status, detail: `${r.error || ""} ${pages}`.trim() };
+              log(`[${idx}] ${label}: ${r.status} ${pages}`);
+            } else {
+              log(`[${idx}] ${label}: not started yet`);
+            }
+            await sleep(pollMs);
+          }
+          return { ok: false, status: "timeout" };
+        }
+        async function generate(idx, s, withBuild) {
+          s.steps.generate = "running";
+          render();
+          const scope = $("blScope").value;
+          const r = await post("/api/blogs/generate", { entityId: s.entity_id, build: withBuild, scope, ...auth() });
+          if (!r.success) {
+            s.steps.generate = "failed";
+            log(`[${idx}] generate failed: ${r.error}`, "error");
+            return { ok: false, message: r.error };
+          }
+          s.steps.generate = "done";
+          log(`[${idx}] ${scope === "full" ? "full website" : "blogs"} generation started (${r.generationId.slice(0, 8)})${withBuild ? "" : " — no publish"}`);
+          return { ok: true, generationId: r.generationId };
+        }
+        async function publish(idx, s) {
+          await waitIfPaused();
+          if (stopRequested) return { ok: false, message: "stopped" };
+          s.steps.publish = "running";
+          render();
+          const r = await post("/api/blogs/publish", { websiteId: s.website_id, ...auth() });
+          if (!r.success) {
+            s.steps.publish = "failed";
+            log(`[${idx}] publish failed: ${r.error}`, "error");
+            return { ok: false, message: r.error };
+          }
+          const w = await waitForRun(r.generationId, "publish", idx);
+          s.steps.publish = w.ok ? "done" : "failed";
+          log(`[${idx}] publish ${w.status} ${w.detail || ""}`, w.ok ? "success" : "error");
+          return { ok: w.ok, message: `publish ${w.status} ${w.detail || ""}`.trim() };
+        }
+        async function runOne(idx, mode) {
+          const s = sites[idx];
+          s.status = "running";
+          s.message = "";
+          s.steps = { ...s.steps };
+          if (mode !== "publish") s.steps = {};
+          else s.steps.publish = "";
+          const finish = (ok, message) => {
+            s.status = ok ? "done" : "failed";
+            s.message = message || "";
+            render();
+            save();
+          };
+          if (mode === "publish") {
+            const p = await publish(idx, s);
+            return finish(p.ok, p.message);
+          }
+          if (mode === "generate") {
+            // No build: nothing reports this run as finished, so it is not polled.
+            const g = await generate(idx, s, false);
+            s.steps.wait = g.ok ? "skipped" : "";
+            s.steps.publish = g.ok ? "skipped" : "";
+            return finish(g.ok, g.ok ? "generation triggered (publish later with Publish only)" : g.message);
+          }
+          const g = await generate(idx, s, true);
+          if (!g.ok) return finish(false, g.message);
+          s.steps.wait = "running";
+          render();
+          const w = await waitForRun(g.generationId, "generation", idx);
+          s.steps.wait = w.ok ? "done" : "failed";
+          if (!w.ok) {
+            log(`[${idx}] generation ${w.status} ${w.detail || ""}`, "error");
+            return finish(false, `generation ${w.status} ${w.detail || ""}`.trim());
+          }
+          const p = await publish(idx, s);
+          return finish(p.ok, p.message);
+        }
+        function setRunningUI(on) {
+          ["blRunBtn", "blRunCheckedBtn", "blCheckAllBtn", "blCheckFailedBtn"].forEach((id) => ($(id).disabled = on));
+          $("blStopBtn").style.display = on ? "" : "none";
+          $("blPauseBtn").style.display = on && !paused ? "" : "none";
+          $("blResumeBtn").style.display = on && paused ? "" : "none";
+        }
+        async function runList(idxs) {
+          if (!$("blApiKey").value.trim()) return log("Set the x-api-key first.", "error");
+          if (!idxs.length) return log("Nothing to run.", "error");
+          const mode = $("blMode").value;
+          running = true;
+          stopRequested = false;
+          paused = false;
+          setRunningUI(true);
+          render();
+          const pagesTxt = mode === "publish" ? "" : `${$("blScope").selectedOptions[0].text} — `;
+          log(`Running ${idxs.length} site(s) — ${pagesTxt}${$("blMode").selectedOptions[0].text} — ${env()} (${$("blInternalUrl").value})`);
+          for (let j = 0; j < idxs.length; j++) {
+            await waitIfPaused();
+            if (stopRequested) break;
+            await runOne(idxs[j], mode);
+            if (j < idxs.length - 1) await sleep(Math.max(0, Number($("blDelay").value) || 0) * 1000);
+          }
+          log(stopRequested ? "Stopped." : "All done.", stopRequested ? "error" : "success");
+          running = false;
+          paused = false;
+          setRunningUI(false);
+          render();
+        }
+
+        $("blFileInput").addEventListener("change", (e) => {
+          const file = e.target.files[0];
+          if (!file) return;
+          const reader = new FileReader();
+          reader.onload = (evt) => {
+            sites = parseCsv(evt.target.result);
+            $("blFrom").value = 0;
+            $("blTo").value = Math.max(0, sites.length - 1);
+            log(`Imported ${sites.length} site(s) from ${file.name}`, "success");
+            render();
+            save();
+          };
+          reader.readAsText(file);
+          e.target.value = "";
+        });
+        $("blClearBtn").addEventListener("click", () => {
+          if (running) return log("Stop the run first.", "error");
+          sites = [];
+          render();
+          save();
+          log("Removed all sites");
+        });
+        $("blExportBtn").addEventListener("click", () => {
+          const rows = [["entity_id", "website_id", "subdomain", "status", "generate", "wait", "publish", "message"]].concat(
+            sites.map((s) => [s.entity_id, s.website_id, s.subdomain || "", s.status, s.steps.generate || "", s.steps.wait || "", s.steps.publish || "", (s.message || "").replace(/[\r\n,]/g, " ")])
+          );
+          const blob = new Blob([rows.map((r) => r.join(",")).join("\n")], { type: "text/csv" });
+          const a = document.createElement("a");
+          a.href = URL.createObjectURL(blob);
+          a.download = `blogs-results-${new Date().toISOString().replace(/[:.]/g, "-")}.csv`;
+          a.click();
+        });
+        $("blBody").addEventListener("click", (e) => {
+          const btn = e.target.closest("[data-bl-play]");
+          if (!btn) return;
+          if (running) return log("A run is in progress — stop it first.", "error");
+          runList([Number(btn.getAttribute("data-bl-play"))]);
+        });
+        $("blBody").addEventListener("change", (e) => {
+          const i = e.target.getAttribute("data-bl-check");
+          if (i != null) {
+            sites[Number(i)].checked = e.target.checked;
+            save();
+          }
+        });
+        $("blCheckAllBtn").addEventListener("click", () => {
+          const all = sites.length && sites.every((s) => s.checked);
+          sites.forEach((s) => (s.checked = !all));
+          render();
+          save();
+        });
+        $("blCheckFailedBtn").addEventListener("click", () => {
+          sites.forEach((s) => (s.checked = s.status === "failed"));
+          render();
+          save();
+        });
+        $("blRunBtn").addEventListener("click", () => {
+          const from = Math.max(0, Number($("blFrom").value) || 0);
+          const to = Math.min(sites.length - 1, Number($("blTo").value) || 0);
+          const idxs = [];
+          for (let i = from; i <= to; i++) idxs.push(i);
+          runList(idxs);
+        });
+        $("blRunCheckedBtn").addEventListener("click", () => {
+          runList(sites.map((s, i) => (s.checked ? i : -1)).filter((i) => i >= 0));
+        });
+        $("blPauseBtn").addEventListener("click", () => {
+          paused = true;
+          setRunningUI(true);
+          log("Paused — the current request finishes, then it waits.");
+        });
+        $("blResumeBtn").addEventListener("click", () => {
+          paused = false;
+          setRunningUI(true);
+          log("Resumed.");
+        });
+        $("blStopBtn").addEventListener("click", () => {
+          stopRequested = true;
+          paused = false;
+          log("Stopping after the current step…");
+        });
+        document.querySelectorAll('input[name="blEnv"]').forEach((r) =>
+          r.addEventListener("change", () => {
+            $("blInternalUrl").value = ENV_URL[env()];
+            log(`Environment: ${env()} (${$("blInternalUrl").value})`);
+            save();
+          })
+        );
+        $("blInternalUrl").addEventListener("change", save);
+        $("blMode").addEventListener("change", save);
+        $("blScope").addEventListener("change", save);
+        // The key is kept in this browser's localStorage, like the other tabs' keys.
+        $("blApiKey").addEventListener("input", save);
+        $("blKeyToggle").addEventListener("click", () => {
+          const input = $("blApiKey");
+          const show = input.type === "password";
+          input.type = show ? "text" : "password";
+          $("blKeyToggle").textContent = show ? "🙈 Hide" : "👁 Show";
+        });
+
+        load();
+        sites.forEach((s) => {
+          if (s.status === "running") s.status = "pending";
+          s.steps = s.steps || {};
+        });
+        render();
+      })();
     </script>
   </body>
 </html>
