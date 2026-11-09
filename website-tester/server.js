@@ -1698,6 +1698,37 @@ app.post("/api/blogs/run", async (req, res) => {
   }
 });
 
+// 4. Does the website already have service pages (services/<category>/...)?
+// A multipager run on a site without them creates the pages AND generates
+// their content with the LLM, so the tab only runs it when this is true.
+app.post("/api/blogs/has-service-pages", async (req, res) => {
+  const { websiteId, apiKey, internalUrl } = req.body || {};
+  if (!websiteId || !apiKey) {
+    return res.status(400).json({ success: false, error: "websiteId and apiKey are required" });
+  }
+  try {
+    let count = 0;
+    for (let page = 1; page <= 10; page++) {
+      const response = await fetch(
+        `${blogsBase(internalUrl)}/internal/api/v1/website/pages/website/${encodeURIComponent(websiteId)}/paginated?type=service&limit=100&page=${page}`,
+        { headers: { ...blogsAuthHeaders(apiKey), "x-ops-request": "true" } }
+      );
+      const body = await blogsReadBody(response);
+      if (!response.ok || body?.success === false) {
+        return res.json({ success: false, error: `HTTP ${response.status}: ${JSON.stringify(body)}` });
+      }
+      const items = Array.isArray(body?.items) ? body.items : body?.data?.items || [];
+      // The type filter may be ignored by the backend: narrow by path ourselves.
+      count += items.filter((p) => String(p?.path || "").replace(/^\/+/, "").startsWith("services/")).length;
+      const totalPages = Number(body?.totalPages || body?.data?.totalPages || 1);
+      if (count > 0 || page >= totalPages) break;
+    }
+    res.json({ success: true, hasServicePages: count > 0, count });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
 app.get("/api/health", (req, res) => {
   res.json({ status: "ok" });
 });

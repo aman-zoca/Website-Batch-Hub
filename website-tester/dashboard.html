@@ -1331,6 +1331,7 @@
         </div>
         <div style="font-size: 12px; color: #6b7280">
           <b>Full website</b> = every main page (home, gallery, reviews, booking, generic, team/staff) + every blog post + the blogs listing, like raft's "Generate Website" (category/service pages are the Service Page Generator's job).
+          <b>Full website + Multipager</b> = the same, then (after publish) it triggers a layout-only multipager run for all categories/services and moves on — only on sites that already have service pages (otherwise it would create pages and generate content).
           <b>Blogs only</b> = every active blog post + the blogs listing. <b>Publish</b> = the whole website (raft's "Publish website").
           CSV needs <code>entity_id</code>, <code>website_id</code>; <code>subdomain</code> shows as a link.
         </div>
@@ -1340,6 +1341,7 @@
             <label><input type="radio" name="blEnv" value="sandbox" /> Sandbox</label>
             <label><input type="radio" name="blEnv" value="prod" checked /> Prod</label>
             <label>Internal URL: <input type="text" id="blInternalUrl" value="https://internal.zoca.ai" style="width: 220px" /></label>
+            <label title="Public API, used to read categories for the multipager step">API URL: <input type="text" id="blApiUrl" value="https://api.zoca.ai" style="width: 180px" /></label>
             <label>x-api-key: <input type="password" id="blApiKey" placeholder="sk_live_… or JWT" style="width: 200px" autocomplete="off" /></label>
             <button class="btn btn-gray" id="blKeyToggle" type="button" title="Show or hide the key">👁 Show</button>
           </div>
@@ -1348,6 +1350,7 @@
             <label>Pages:
               <select id="blScope">
                 <option value="full">Full website (all main pages + blogs)</option>
+                <option value="fullmp">Full website + Multipager (then trigger categories/services)</option>
                 <option value="blogs">Blogs only</option>
               </select>
             </label>
@@ -1380,7 +1383,7 @@
             <thead>
               <tr>
                 <th>Run</th><th>#</th><th>Status</th><th>Site</th><th>Entity ID</th><th>Website ID</th>
-                <th>1. Generate</th><th>2. Wait</th><th>3. Publish</th><th>Message</th>
+                <th>1. Generate</th><th>2. Wait</th><th>3. Publish</th><th>4. Multipager</th><th>Message</th>
               </tr>
             </thead>
             <tbody id="blBody"></tbody>
@@ -3819,6 +3822,7 @@ limit 20;`;
       (function () {
         const KEY = "batch-hub-blogs";
         const ENV_URL = { sandbox: "https://internal.mononest.dev", prod: "https://internal.zoca.ai" };
+        const ENV_API = { sandbox: "https://api.mononest.dev", prod: "https://api.zoca.ai" };
         const $ = (id) => document.getElementById(id);
         let sites = [];
         let running = false;
@@ -3845,7 +3849,7 @@ limit 20;`;
           try {
             localStorage.setItem(
               KEY,
-              JSON.stringify({ sites, internalUrl: $("blInternalUrl").value, env: env(), mode: $("blMode").value, scope: $("blScope").value, apiKey: $("blApiKey").value })
+              JSON.stringify({ sites, internalUrl: $("blInternalUrl").value, apiUrl: $("blApiUrl").value, env: env(), mode: $("blMode").value, scope: $("blScope").value, apiKey: $("blApiKey").value })
             );
           } catch (e) {}
         }
@@ -3856,6 +3860,7 @@ limit 20;`;
             sites = d.sites || [];
             if (d.env) document.querySelectorAll('input[name="blEnv"]').forEach((r) => (r.checked = r.value === d.env));
             if (d.internalUrl) $("blInternalUrl").value = d.internalUrl;
+            if (d.apiUrl) $("blApiUrl").value = d.apiUrl;
             if (d.mode) $("blMode").value = d.mode;
             if (d.scope) $("blScope").value = d.scope;
             if (d.apiKey) $("blApiKey").value = d.apiKey;
@@ -3872,7 +3877,7 @@ limit 20;`;
                 <td>${i}</td><td>${esc(s.status)}</td><td>${siteLink(s.subdomain)}</td>
                 <td title="${esc(s.entity_id)}">${esc(s.entity_id)}</td>
                 <td title="${esc(s.website_id)}">${esc(s.website_id)}</td>
-                ${stepCell(s.steps.generate)}${stepCell(s.steps.wait)}${stepCell(s.steps.publish)}
+                ${stepCell(s.steps.generate)}${stepCell(s.steps.wait)}${stepCell(s.steps.publish)}${stepCell(s.steps.multipager)}
                 <td>${esc(s.message || "")}</td></tr>`
             )
             .join("");
@@ -3935,7 +3940,7 @@ limit 20;`;
         async function generate(idx, s, withBuild) {
           s.steps.generate = "running";
           render();
-          const scope = $("blScope").value;
+          const scope = $("blScope").value === "blogs" ? "blogs" : "full";
           const r = await post("/api/blogs/generate", { entityId: s.entity_id, build: withBuild, scope, ...auth() });
           if (!r.success) {
             s.steps.generate = "failed";
@@ -3962,6 +3967,51 @@ limit 20;`;
           log(`[${idx}] publish ${w.status} ${w.detail || ""}`, w.ok ? "success" : "error");
           return { ok: w.ok, message: `publish ${w.status} ${w.detail || ""}`.trim() };
         }
+        // Layout-only multipager run for all categories/services, triggered and not
+        // waited on. Skipped when the site has no service pages yet: a first run
+        // would create them and generate their content with the LLM.
+        async function triggerMultipager(idx, s) {
+          await waitIfPaused();
+          if (stopRequested) return { ok: false, message: "stopped" };
+          s.steps.multipager = "running";
+          render();
+          const { apiKey, internalUrl } = auth();
+          const has = await post("/api/blogs/has-service-pages", { websiteId: s.website_id, apiKey, internalUrl });
+          if (!has.success) {
+            s.steps.multipager = "failed";
+            log(`[${idx}] multipager check failed: ${has.error}`, "error");
+            return { ok: false, message: `multipager check failed: ${has.error}` };
+          }
+          if (!has.hasServicePages) {
+            s.steps.multipager = "skipped";
+            log(`[${idx}] multipager skipped — no service pages yet (would generate content)`);
+            return { ok: true, message: "multipager skipped (no service pages yet)" };
+          }
+          const apiUrl = $("blApiUrl").value.trim();
+          const cats = await post("/api/sp/categories", { entityId: s.entity_id, apiUrl, apiKey });
+          if (!cats.success) {
+            s.steps.multipager = "failed";
+            log(`[${idx}] categories failed: ${cats.error}`, "error");
+            return { ok: false, message: `categories failed: ${cats.error}` };
+          }
+          const categories = cats.categories || [];
+          const specificCategories = categories.map((c) => c.id || c.categoryId).filter(Boolean);
+          const specificServices = categories.flatMap((c) => (c.services || []).map((x) => x.id || x.serviceId)).filter(Boolean);
+          if (!specificCategories.length) {
+            s.steps.multipager = "skipped";
+            return { ok: true, message: "multipager skipped (no categories)" };
+          }
+          const g = await post("/api/sp/generate-multipager", { entityId: s.entity_id, apiKey, internalUrl, specificCategories, specificServices });
+          if (!g.success) {
+            s.steps.multipager = "failed";
+            log(`[${idx}] multipager trigger failed: ${g.error}`, "error");
+            return { ok: false, message: `multipager failed: ${g.error}` };
+          }
+          s.steps.multipager = "done";
+          log(`[${idx}] multipager triggered (${specificCategories.length} categories, ${specificServices.length} services) — running in the background`, "success");
+          return { ok: true, message: `multipager triggered (${specificCategories.length} cat / ${specificServices.length} svc)` };
+        }
+
         async function runOne(idx, mode) {
           const s = sites[idx];
           s.status = "running";
@@ -3984,7 +4034,10 @@ limit 20;`;
             const g = await generate(idx, s, false);
             s.steps.wait = g.ok ? "skipped" : "";
             s.steps.publish = g.ok ? "skipped" : "";
-            return finish(g.ok, g.ok ? "generation triggered (publish later with Publish only)" : g.message);
+            if (!g.ok || $("blScope").value !== "fullmp")
+              return finish(g.ok, g.ok ? "generation triggered (publish later with Publish only)" : g.message);
+            const m = await triggerMultipager(idx, s);
+            return finish(m.ok, `generation triggered; ${m.message}`);
           }
           const g = await generate(idx, s, true);
           if (!g.ok) return finish(false, g.message);
@@ -3997,7 +4050,9 @@ limit 20;`;
             return finish(false, `generation ${w.status} ${w.detail || ""}`.trim());
           }
           const p = await publish(idx, s);
-          return finish(p.ok, p.message);
+          if (!p.ok || $("blScope").value !== "fullmp") return finish(p.ok, p.message);
+          const m = await triggerMultipager(idx, s);
+          return finish(m.ok, `${p.message}; ${m.message}`);
         }
         function setRunningUI(on) {
           ["blRunBtn", "blRunCheckedBtn", "blCheckAllBtn", "blCheckFailedBtn"].forEach((id) => ($(id).disabled = on));
@@ -4052,8 +4107,8 @@ limit 20;`;
           log("Removed all sites");
         });
         $("blExportBtn").addEventListener("click", () => {
-          const rows = [["entity_id", "website_id", "subdomain", "status", "generate", "wait", "publish", "message"]].concat(
-            sites.map((s) => [s.entity_id, s.website_id, s.subdomain || "", s.status, s.steps.generate || "", s.steps.wait || "", s.steps.publish || "", (s.message || "").replace(/[\r\n,]/g, " ")])
+          const rows = [["entity_id", "website_id", "subdomain", "status", "generate", "wait", "publish", "multipager", "message"]].concat(
+            sites.map((s) => [s.entity_id, s.website_id, s.subdomain || "", s.status, s.steps.generate || "", s.steps.wait || "", s.steps.publish || "", s.steps.multipager || "", (s.message || "").replace(/[\r\n,]/g, " ")])
           );
           const blob = new Blob([rows.map((r) => r.join(",")).join("\n")], { type: "text/csv" });
           const a = document.createElement("a");
@@ -4113,11 +4168,13 @@ limit 20;`;
         document.querySelectorAll('input[name="blEnv"]').forEach((r) =>
           r.addEventListener("change", () => {
             $("blInternalUrl").value = ENV_URL[env()];
+            $("blApiUrl").value = ENV_API[env()];
             log(`Environment: ${env()} (${$("blInternalUrl").value})`);
             save();
           })
         );
         $("blInternalUrl").addEventListener("change", save);
+        $("blApiUrl").addEventListener("change", save);
         $("blMode").addEventListener("change", save);
         $("blScope").addEventListener("change", save);
         // The key is kept in this browser's localStorage, like the other tabs' keys.
