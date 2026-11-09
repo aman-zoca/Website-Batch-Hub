@@ -1366,7 +1366,7 @@
             <label title="Give up waiting on one run after this long">Max wait (min): <input type="number" id="blMaxWait" value="20" min="1" step="1" /></label>
             <label>From: <input type="number" id="blFrom" value="0" min="0" /></label>
             <label>To: <input type="number" id="blTo" value="0" min="0" /></label>
-            <button class="btn btn-green" id="blRunBtn">Run All</button>
+            <button class="btn btn-green" id="blRunBtn" title="Runs rows From to To (inclusive)">Run (0–0)</button>
             <button class="btn btn-green" id="blRunCheckedBtn">Run Checked</button>
             <button class="btn btn-gray" id="blPauseBtn" style="display: none">⏸ Pause</button>
             <button class="btn btn-green" id="blResumeBtn" style="display: none">▶ Resume</button>
@@ -3868,7 +3868,15 @@ limit 20;`;
         }
         const stepClass = { done: "step-success", failed: "step-failed", running: "step-running" };
         const stepCell = (v) => `<td class="${stepClass[v] || ""}">${esc(v || "-")}</td>`;
+        // The Run button names the exact rows it runs, e.g. "Run (0–30) · 31 sites".
+        function updateRunLabel() {
+          const from = Math.max(0, Number($("blFrom").value) || 0);
+          const to = Math.min(sites.length - 1, Number($("blTo").value) || 0);
+          const n = sites.length && to >= from ? to - from + 1 : 0;
+          $("blRunBtn").textContent = n ? `Run (${from}–${to}) · ${n} site${n === 1 ? "" : "s"}` : "Run (no rows)";
+        }
         function render() {
+          updateRunLabel();
           $("blBody").innerHTML = sites
             .map(
               (s, i) => `<tr>
@@ -4175,6 +4183,8 @@ limit 20;`;
         );
         $("blInternalUrl").addEventListener("change", save);
         $("blApiUrl").addEventListener("change", save);
+        $("blFrom").addEventListener("input", updateRunLabel);
+        $("blTo").addEventListener("input", updateRunLabel);
         $("blMode").addEventListener("change", save);
         $("blScope").addEventListener("change", save);
         // The key is kept in this browser's localStorage, like the other tabs' keys.
