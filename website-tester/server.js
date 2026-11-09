@@ -1577,6 +1577,127 @@ app.post("/api/sp/generate-multipager", async (req, res) => {
   }
 });
 
+// ===== Blogs: regenerate every blog page + the blogs listing, then publish =====
+// Auth: a JWT ("eyJ…") goes as Bearer, anything else as x-api-key.
+function blogsAuthHeaders(apiKey) {
+  const key = String(apiKey || "").trim().replace(/^Bearer\s+/i, "");
+  return key.startsWith("eyJ") ? { Authorization: `Bearer ${key}` } : { "x-api-key": key };
+}
+function blogsBase(internalUrl) {
+  return (internalUrl || "https://internal.zoca.ai").replace(/\/+$/, "");
+}
+async function blogsReadBody(response) {
+  try { return await response.json(); } catch (e) { return null; }
+}
+
+// 1. Generate every active blog post (`blog`) and the listing (`blog-listing`) only.
+app.post("/api/blogs/generate", async (req, res) => {
+  const { entityId, apiKey, internalUrl, build, scope } = req.body || {};
+  if (!entityId || !apiKey) {
+    return res.status(400).json({ success: false, error: "entityId and apiKey are required" });
+  }
+  // build:false = generate only (no static build / publish).
+  const shouldBuild = build !== false;
+  const generationId = randomUUID();
+  try {
+    const response = await fetch(
+      `${blogsBase(internalUrl)}/internal/api/v1/website/creation/generate/website/v2`,
+      {
+        method: "POST",
+        headers: {
+          ...blogsAuthHeaders(apiKey),
+          "Content-Type": "application/json",
+          "x-source": "raft",
+          "x-ops-request": "true",
+          "ngrok-skip-browser-warning": "true",
+        },
+        body: JSON.stringify({
+          entityId,
+          homeSectionsToUpdate: [],
+          // scope "full" = the whole site (main pages + every blog + listing):
+          // no pagesToBuild, like raft's "Generate Website". Default: blogs only.
+          ...(scope === "full" ? {} : { pagesToBuild: ["blog", "blog-listing"] }),
+          shouldGenerateStaticBuild: shouldBuild,
+          showLoadingScreen: false,
+          generationId,
+          source: "raft",
+        }),
+      }
+    );
+    const data = await blogsReadBody(response);
+    console.log(`[blogs/generate] ${entityId} scope=${scope === "full" ? "full" : "blogs"} build=${shouldBuild} -> ${response.status}`);
+    if (!response.ok) {
+      return res.json({ success: false, error: `HTTP ${response.status}: ${JSON.stringify(data)}` });
+    }
+    res.json({ success: true, generationId, data });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// 2. Publish the whole website (raft's "Publish website").
+app.post("/api/blogs/publish", async (req, res) => {
+  const { websiteId, apiKey, internalUrl } = req.body || {};
+  if (!websiteId || !apiKey) {
+    return res.status(400).json({ success: false, error: "websiteId and apiKey are required" });
+  }
+  const generationId = randomUUID();
+  try {
+    const response = await fetch(
+      `${blogsBase(internalUrl)}/internal/api/v1/website/creation/build/website/v2`,
+      {
+        method: "POST",
+        headers: {
+          ...blogsAuthHeaders(apiKey),
+          "Content-Type": "application/json",
+          "x-ops-request": "true",
+          "ngrok-skip-browser-warning": "true",
+        },
+        body: JSON.stringify({ websiteId, generationId, source: "raft" }),
+      }
+    );
+    const data = await blogsReadBody(response);
+    console.log(`[blogs/publish] ${websiteId} -> ${response.status}`);
+    if (!response.ok) {
+      return res.json({ success: false, error: `HTTP ${response.status}: ${JSON.stringify(data)}` });
+    }
+    res.json({ success: true, generationId, data });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// 3. Status of a run by its generationId. 404 = not started yet (keep polling).
+app.post("/api/blogs/run", async (req, res) => {
+  const { generationId, apiKey, internalUrl } = req.body || {};
+  if (!generationId || !apiKey) {
+    return res.status(400).json({ success: false, error: "generationId and apiKey are required" });
+  }
+  try {
+    const response = await fetch(
+      `${blogsBase(internalUrl)}/internal/api/v1/website/pipeline-metrics/runs/by-generation/${encodeURIComponent(generationId)}`,
+      { headers: { ...blogsAuthHeaders(apiKey), "x-ops-request": "true" } }
+    );
+    if (response.status === 404) return res.json({ success: true, found: false });
+    const body = await blogsReadBody(response);
+    if (!response.ok) {
+      return res.json({ success: false, error: `HTTP ${response.status}: ${JSON.stringify(body)}` });
+    }
+    const run = body?.data?.run || body?.run || {};
+    res.json({
+      success: true,
+      found: true,
+      status: String(run.status || "").toLowerCase(),
+      pagesTotal: run.pagesTotal ?? run.pages_total ?? null,
+      pagesDone: run.pagesDone ?? run.pages_done ?? null,
+      pagesFailed: run.pagesFailed ?? run.pages_failed ?? null,
+      error: run.error || null,
+    });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
 app.get("/api/health", (req, res) => {
   res.json({ status: "ok" });
 });
