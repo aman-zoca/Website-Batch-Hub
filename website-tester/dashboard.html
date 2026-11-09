@@ -1332,7 +1332,7 @@
         <div style="font-size: 12px; color: #6b7280">
           <b>Full website</b> = every main page (home, gallery, reviews, booking, generic, team/staff) + every blog post + the blogs listing, like raft's "Generate Website" (category/service pages are the Service Page Generator's job).
           <b>Full website + Multipager</b> = the same, then (after publish) it triggers a layout-only multipager run for all categories/services and moves on — only on sites that already have service pages (otherwise it would create pages and generate content).
-          <b>Blogs only</b> = every active blog post + the blogs listing. <b>Publish</b> = the whole website (raft's "Publish website").
+          <b>Blogs only</b> = every active blog post + the blogs listing. <b>Staff pages only</b> = /team + every member's /team/&lt;slug&gt; (needs staff pages on: tick "Turn on staff pages first"; Full website builds them too once on). <b>Publish</b> = the whole website (raft's "Publish website").
           CSV needs <code>entity_id</code>, <code>website_id</code>; <code>subdomain</code> shows as a link.
         </div>
         <div style="display: flex; gap: 10px; flex-wrap: wrap">
@@ -1352,8 +1352,11 @@
                 <option value="full">Full website (all main pages + blogs)</option>
                 <option value="fullmp">Full website + Multipager (then trigger categories/services)</option>
                 <option value="blogs">Blogs only</option>
+                <option value="staff">Staff pages only (/team + every /team/&lt;slug&gt;)</option>
               </select>
             </label>
+            <label title="Before generating, turn the site's staff pages on (raft's 'Staff pages enabled' switch). Needed for /team and staff pages to be built.">
+              <input type="checkbox" id="blStaffOn" /> Turn on staff pages first</label>
             <label>Action:
               <select id="blMode">
                 <option value="both">Generate &amp; Publish</option>
@@ -1382,7 +1385,7 @@
           <table>
             <thead>
               <tr>
-                <th>Run</th><th>#</th><th>Status</th><th>Site</th><th>Entity ID</th><th>Website ID</th>
+                <th>Run</th><th>#</th><th>Status</th><th>Site</th><th>Entity ID</th><th>Website ID</th><th>0. Staff on</th>
                 <th>1. Generate</th><th>2. Wait</th><th>3. Publish</th><th>4. Multipager</th><th>Message</th>
               </tr>
             </thead>
@@ -3849,7 +3852,7 @@ limit 20;`;
           try {
             localStorage.setItem(
               KEY,
-              JSON.stringify({ sites, internalUrl: $("blInternalUrl").value, apiUrl: $("blApiUrl").value, env: env(), mode: $("blMode").value, scope: $("blScope").value, apiKey: $("blApiKey").value })
+              JSON.stringify({ sites, internalUrl: $("blInternalUrl").value, apiUrl: $("blApiUrl").value, env: env(), mode: $("blMode").value, scope: $("blScope").value, staffOn: $("blStaffOn").checked, apiKey: $("blApiKey").value })
             );
           } catch (e) {}
         }
@@ -3863,6 +3866,7 @@ limit 20;`;
             if (d.apiUrl) $("blApiUrl").value = d.apiUrl;
             if (d.mode) $("blMode").value = d.mode;
             if (d.scope) $("blScope").value = d.scope;
+            $("blStaffOn").checked = d.staffOn === true;
             if (d.apiKey) $("blApiKey").value = d.apiKey;
           } catch (e) {}
         }
@@ -3885,7 +3889,7 @@ limit 20;`;
                 <td>${i}</td><td>${esc(s.status)}</td><td>${siteLink(s.subdomain)}</td>
                 <td title="${esc(s.entity_id)}">${esc(s.entity_id)}</td>
                 <td title="${esc(s.website_id)}">${esc(s.website_id)}</td>
-                ${stepCell(s.steps.generate)}${stepCell(s.steps.wait)}${stepCell(s.steps.publish)}${stepCell(s.steps.multipager)}
+                ${stepCell(s.steps.staff)}${stepCell(s.steps.generate)}${stepCell(s.steps.wait)}${stepCell(s.steps.publish)}${stepCell(s.steps.multipager)}
                 <td>${esc(s.message || "")}</td></tr>`
             )
             .join("");
@@ -3948,7 +3952,8 @@ limit 20;`;
         async function generate(idx, s, withBuild) {
           s.steps.generate = "running";
           render();
-          const scope = $("blScope").value === "blogs" ? "blogs" : "full";
+          const sel = $("blScope").value;
+          const scope = sel === "blogs" || sel === "staff" ? sel : "full";
           const r = await post("/api/blogs/generate", { entityId: s.entity_id, build: withBuild, scope, ...auth() });
           if (!r.success) {
             s.steps.generate = "failed";
@@ -3956,7 +3961,7 @@ limit 20;`;
             return { ok: false, message: r.error };
           }
           s.steps.generate = "done";
-          log(`[${idx}] ${scope === "full" ? "full website" : "blogs"} generation started (${r.generationId.slice(0, 8)})${withBuild ? "" : " — no publish"}`);
+          log(`[${idx}] ${scope === "full" ? "full website" : scope === "staff" ? "staff pages" : "blogs"} generation started (${r.generationId.slice(0, 8)})${withBuild ? "" : " — no publish"}`);
           return { ok: true, generationId: r.generationId };
         }
         async function publish(idx, s) {
@@ -4020,6 +4025,22 @@ limit 20;`;
           return { ok: true, message: `multipager triggered (${specificCategories.length} cat / ${specificServices.length} svc)` };
         }
 
+        // Raft's "Staff pages enabled" switch, turned on before generating.
+        async function turnOnStaffPages(idx, s) {
+          s.steps.staff = "running";
+          render();
+          const { apiKey, internalUrl } = auth();
+          const r = await post("/api/blogs/staff-pages-switch", { entityId: s.entity_id, apiKey, internalUrl, enabled: true });
+          if (!r.success) {
+            s.steps.staff = "failed";
+            log(`[${idx}] staff pages switch failed: ${r.error}`, "error");
+            return { ok: false, message: `staff pages switch failed: ${r.error}` };
+          }
+          s.steps.staff = r.enabled ? "done" : "failed";
+          log(`[${idx}] staff pages ${r.enabled ? "on" : "NOT on"}`, r.enabled ? "success" : "error");
+          return { ok: r.enabled, message: r.enabled ? "" : "staff pages did not turn on" };
+        }
+
         async function runOne(idx, mode) {
           const s = sites[idx];
           s.status = "running";
@@ -4036,6 +4057,10 @@ limit 20;`;
           if (mode === "publish") {
             const p = await publish(idx, s);
             return finish(p.ok, p.message);
+          }
+          if ($("blStaffOn").checked) {
+            const st = await turnOnStaffPages(idx, s);
+            if (!st.ok) return finish(false, st.message);
           }
           if (mode === "generate") {
             // No build: nothing reports this run as finished, so it is not polled.
@@ -4115,8 +4140,8 @@ limit 20;`;
           log("Removed all sites");
         });
         $("blExportBtn").addEventListener("click", () => {
-          const rows = [["entity_id", "website_id", "subdomain", "status", "generate", "wait", "publish", "multipager", "message"]].concat(
-            sites.map((s) => [s.entity_id, s.website_id, s.subdomain || "", s.status, s.steps.generate || "", s.steps.wait || "", s.steps.publish || "", s.steps.multipager || "", (s.message || "").replace(/[\r\n,]/g, " ")])
+          const rows = [["entity_id", "website_id", "subdomain", "status", "staff_on", "generate", "wait", "publish", "multipager", "message"]].concat(
+            sites.map((s) => [s.entity_id, s.website_id, s.subdomain || "", s.status, s.steps.staff || "", s.steps.generate || "", s.steps.wait || "", s.steps.publish || "", s.steps.multipager || "", (s.message || "").replace(/[\r\n,]/g, " ")])
           );
           const blob = new Blob([rows.map((r) => r.join(",")).join("\n")], { type: "text/csv" });
           const a = document.createElement("a");
@@ -4187,6 +4212,7 @@ limit 20;`;
         $("blTo").addEventListener("input", updateRunLabel);
         $("blMode").addEventListener("change", save);
         $("blScope").addEventListener("change", save);
+        $("blStaffOn").addEventListener("change", save);
         // The key is kept in this browser's localStorage, like the other tabs' keys.
         $("blApiKey").addEventListener("input", save);
         $("blKeyToggle").addEventListener("click", () => {

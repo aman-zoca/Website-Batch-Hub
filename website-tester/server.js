@@ -1616,7 +1616,12 @@ app.post("/api/blogs/generate", async (req, res) => {
           homeSectionsToUpdate: [],
           // scope "full" = the whole site (main pages + every blog + listing):
           // no pagesToBuild, like raft's "Generate Website". Default: blogs only.
-          ...(scope === "full" ? {} : { pagesToBuild: ["blog", "blog-listing"] }),
+          // scope "staff" = /team and every /team/<slug> page.
+          ...(scope === "full"
+            ? {}
+            : scope === "staff"
+            ? { pagesToBuild: ["team", "staff"] }
+            : { pagesToBuild: ["blog", "blog-listing"] }),
           shouldGenerateStaticBuild: shouldBuild,
           showLoadingScreen: false,
           generationId,
@@ -1625,7 +1630,7 @@ app.post("/api/blogs/generate", async (req, res) => {
       }
     );
     const data = await blogsReadBody(response);
-    console.log(`[blogs/generate] ${entityId} scope=${scope === "full" ? "full" : "blogs"} build=${shouldBuild} -> ${response.status}`);
+    console.log(`[blogs/generate] ${entityId} scope=${scope || "blogs"} build=${shouldBuild} -> ${response.status}`);
     if (!response.ok) {
       return res.json({ success: false, error: `HTTP ${response.status}: ${JSON.stringify(data)}` });
     }
@@ -1724,6 +1729,34 @@ app.post("/api/blogs/has-service-pages", async (req, res) => {
       if (count > 0 || page >= totalPages) break;
     }
     res.json({ success: true, hasServicePages: count > 0, count });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// 5. Turn the website's staff pages on (or off): raft's "Staff pages enabled"
+// switch (entity preference website.create.staffPages).
+app.post("/api/blogs/staff-pages-switch", async (req, res) => {
+  const { entityId, apiKey, internalUrl, enabled } = req.body || {};
+  if (!entityId || !apiKey) {
+    return res.status(400).json({ success: false, error: "entityId and apiKey are required" });
+  }
+  try {
+    const response = await fetch(
+      `${blogsBase(internalUrl)}/internal/api/v1/website/staff-pages/${encodeURIComponent(entityId)}`,
+      {
+        method: "PATCH",
+        headers: { ...blogsAuthHeaders(apiKey), "Content-Type": "application/json", "x-ops-request": "true" },
+        body: JSON.stringify({ enabled: enabled !== false }),
+      }
+    );
+    const body = await blogsReadBody(response);
+    console.log(`[blogs/staff-pages-switch] ${entityId} enabled=${enabled !== false} -> ${response.status}`);
+    if (!response.ok) {
+      return res.json({ success: false, error: `HTTP ${response.status}: ${JSON.stringify(body)}` });
+    }
+    const data = body?.data ?? body;
+    res.json({ success: true, enabled: data?.enabled === true });
   } catch (error) {
     res.json({ success: false, error: error.message });
   }
