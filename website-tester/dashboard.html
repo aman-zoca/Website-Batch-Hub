@@ -757,12 +757,20 @@
             <button
               class="btn btn-green"
               id="genAllPagesBtn"
-              title="Sends the exact raft generate curl (internal.zoca.ai, full site) for checked rows, or the From/To range if none are checked. Ignores the page checkboxes and prod toggle."
+              title="Sends the exact raft generate curl (internal.zoca.ai, full site) for rows From..To. Ignores the page checkboxes and prod toggle."
             >
               Generate All Pages
             </button>
             <button class="btn btn-red" id="pauseGenBtn" style="display: none">
               Pause
+            </button>
+            <button
+              class="btn btn-green"
+              id="resumeGenBtn"
+              style="display: none"
+              title="Continue the paused generate from the next row"
+            >
+              Resume
             </button>
             <button
               class="btn btn-gray"
@@ -1073,6 +1081,7 @@
                 <th>Status</th>
                 <th>Entity ID</th>
                 <th>Website ID</th>
+                <th>Website URL</th>
                 <th>Subdomain</th>
                 <th>Rank</th>
                 <th>1. Categories</th>
@@ -1279,7 +1288,43 @@
     <!-- /tab-migrate -->
 
     <script>
+      // Background-safe timers. Chrome throttles setTimeout in hidden tabs
+      // (down to once per minute after ~5 min), which stalled long waits when
+      // you switched tabs/profiles. Timers inside a dedicated Web Worker are
+      // not throttled that way, so all sleeps go through one here.
+      const bgTimer = (() => {
+        let worker = null;
+        try {
+          const src =
+            "onmessage=e=>setTimeout(()=>postMessage(e.data.id),e.data.ms)";
+          worker = new Worker(
+            URL.createObjectURL(new Blob([src], { type: "text/javascript" }))
+          );
+        } catch (e) {
+          worker = null; // fall back to window timers
+        }
+        let nextId = 0;
+        const pending = new Map();
+        if (worker)
+          worker.onmessage = (e) => {
+            const r = pending.get(e.data);
+            pending.delete(e.data);
+            if (r) r();
+          };
+        return (ms) =>
+          new Promise((resolve) => {
+            if (!worker) return setTimeout(resolve, ms);
+            const id = ++nextId;
+            pending.set(id, resolve);
+            worker.postMessage({ id, ms: Math.max(0, ms) });
+          });
+      })();
+
       const STORAGE_KEY = "website-tester-data";
+      // Generation runner state (see "Generation runner" below).
+      let genRunning = false;
+      let genShouldStop = false;
+      let genJob = null; // { idxs, pos, exact, label }
       let sites = [];
       let isRunning = false;
       let shouldStop = false;
@@ -1357,6 +1402,7 @@
             genPages: getGenPages(),
             genProd: document.getElementById("genProd").checked,
             stepToggles: getStepToggles(),
+            genJob,
           })
         );
       }
@@ -2066,207 +2112,189 @@
           log(`Cleared generation markers on ${count} row(s)`, "info");
         });
 
-      // Generation state
-      let genRunning = false;
-      let genShouldStop = false;
+      // ===== Generation runner (shared by Generate / Generate Checked /
+      // Generate All Pages) with Pause + Resume. The job (row queue +
+      // position) is persisted so Resume also works after a page reload.
 
-      function showGenRunning() {
-        document.getElementById("genRangeBtn").style.display = "none";
-        document.getElementById("genCheckedBtn").style.display = "none";
-        document.getElementById("genAllPagesBtn").style.display = "none";
-        document.getElementById("pauseGenBtn").style.display = "inline-flex";
+      function updateGenButtons() {
+        const show = (id, on) =>
+          (document.getElementById(id).style.display = on
+            ? "inline-flex"
+            : "none");
+        const paused = !genRunning && genJob && genJob.pos < genJob.idxs.length;
+        show("genRangeBtn", !genRunning);
+        show("genCheckedBtn", !genRunning);
+        show("genAllPagesBtn", !genRunning);
+        show("pauseGenBtn", genRunning);
+        show("resumeGenBtn", paused);
+        if (paused) {
+          document.getElementById("resumeGenBtn").textContent = `Resume (${
+            genJob.idxs.length - genJob.pos
+          } left, next row ${genJob.idxs[genJob.pos]})`;
+        }
       }
 
-      function showGenStopped() {
-        document.getElementById("genRangeBtn").style.display = "inline-flex";
-        document.getElementById("genCheckedBtn").style.display = "inline-flex";
-        document.getElementById("genAllPagesBtn").style.display = "inline-flex";
-        document.getElementById("pauseGenBtn").style.display = "none";
+      function requireApiKey() {
+        if (document.getElementById("apiKey").value.trim()) return true;
+        log("No API key set! Paste your x-api-key first.", "error");
+        return false;
       }
 
-      // Generate Range — generates rows from genFrom to genTo
-      document
-        .getElementById("genRangeBtn")
-        .addEventListener("click", async () => {
-          const apiKey = document.getElementById("apiKey").value.trim();
-          if (!apiKey) {
-            log("No API key set! Paste your x-api-key first.", "error");
-            return;
-          }
-
-          const from = +document.getElementById("genFrom").value;
-          const to = +document.getElementById("genTo").value;
-
-          if (from > to || from >= sites.length) {
-            log("Invalid Gen From/To range!", "error");
-            return;
-          }
-
-          const end = Math.min(to, sites.length - 1);
-          const total = end - from + 1;
-
-          genRunning = true;
-          genShouldStop = false;
-          showGenRunning();
-
-          const genDelaySec = +document.getElementById("genDelay").value || 50;
+      // Rows From..To (inclusive, as shown in the # column) with an entity_id.
+      function getRangeIdxs() {
+        const from = parseInt(document.getElementById("genFrom").value, 10);
+        const to = parseInt(document.getElementById("genTo").value, 10);
+        if (
+          !Number.isInteger(from) ||
+          !Number.isInteger(to) ||
+          from < 0 ||
+          from > to ||
+          from >= sites.length
+        ) {
           log(
-            `Starting generate for rows ${from}-${end} (${total} rows, ${genDelaySec}s delay)`,
-            "info"
+            `Invalid From/To range (${from}-${to}, rows 0-${sites.length - 1})`,
+            "error"
           );
+          return null;
+        }
+        const end = Math.min(to, sites.length - 1);
+        const idxs = [];
+        for (let i = from; i <= end; i++) {
+          if (sites[i].entity_id) idxs.push(i);
+          else log(`[${i}] Skipping — no entity_id`, "info");
+        }
+        return { idxs, label: `rows ${from}-${end}` };
+      }
 
-          for (let i = from; i <= end; i++) {
-            if (genShouldStop) {
-              log("Generation paused by user", "error");
-              break;
-            }
-
-            if (!sites[i].entity_id) {
-              log(`[${i}] Skipping — no entity_id`, "info");
-              continue;
-            }
-
-            log(`[${i}] Generating (${i - from + 1}/${total})...`, "info");
-            await generateRow(i);
-
-            if (i < end && !genShouldStop) {
-              log(`Waiting ${genDelaySec}s before next generate...`, "info");
-              await new Promise((r) => setTimeout(r, genDelaySec * 1000));
-            }
-          }
-
-          genRunning = false;
-          showGenStopped();
-          log("Generate range completed", "success");
+      function getCheckedIdxs() {
+        const idxs = [];
+        sites.forEach((s, i) => {
+          if (s.gen_checked && s.entity_id) idxs.push(i);
         });
+        return idxs;
+      }
 
-      // Generate Checked — runs generate one by one with delay
-      document
-        .getElementById("genCheckedBtn")
-        .addEventListener("click", async () => {
-          const apiKey = document.getElementById("apiKey").value.trim();
-          if (!apiKey) {
-            log("No API key set! Paste your x-api-key first.", "error");
-            return;
-          }
+      // Sleep that wakes early when Pause is clicked.
+      async function genSleep(ms) {
+        const until = Date.now() + ms;
+        while (Date.now() < until && !genShouldStop) {
+          await bgTimer(Math.min(250, until - Date.now()));
+        }
+      }
 
-          const checkedIdxs = [];
-          sites.forEach((s, i) => {
-            if (s.gen_checked && s.entity_id) checkedIdxs.push(i);
-          });
+      async function runGenJob() {
+        if (!genJob || genRunning) return;
+        genRunning = true;
+        genShouldStop = false;
+        updateGenButtons();
 
-          if (checkedIdxs.length === 0) {
-            log("No rows checked for generation!", "error");
-            return;
-          }
-
-          genRunning = true;
-          genShouldStop = false;
-          showGenRunning();
-
-          const genDelaySec = +document.getElementById("genDelay").value || 50;
+        const total = genJob.idxs.length;
+        while (genJob.pos < total) {
+          if (genShouldStop) break;
+          const idx = genJob.idxs[genJob.pos];
           log(
-            `Starting batch generate for ${checkedIdxs.length} checked rows (${genDelaySec}s delay)`,
+            `[${idx}] Generating${genJob.exact ? " all pages" : ""} (${
+              genJob.pos + 1
+            }/${total})...`,
             "info"
           );
+          await generateRow(idx, { exact: genJob.exact });
+          genJob.pos++;
+          save();
 
-          for (let j = 0; j < checkedIdxs.length; j++) {
-            if (genShouldStop) {
-              log("Generation paused by user", "error");
-              break;
-            }
-
-            const idx = checkedIdxs[j];
-            log(
-              `[${idx}] Generating (${j + 1}/${checkedIdxs.length})...`,
-              "info"
+          if (genJob.pos < total && !genShouldStop) {
+            const sec = Math.max(
+              0,
+              +document.getElementById("genDelay").value || 0
             );
-            await generateRow(idx);
-
-            if (j < checkedIdxs.length - 1 && !genShouldStop) {
-              log(`Waiting ${genDelaySec}s before next generate...`, "info");
-              await new Promise((r) => setTimeout(r, genDelaySec * 1000));
+            if (sec > 0) {
+              log(`Waiting ${sec}s before next generate...`, "info");
+              await genSleep(sec * 1000);
             }
           }
+        }
 
-          genRunning = false;
-          showGenStopped();
-          log("Batch generate completed", "success");
-        });
+        genRunning = false;
+        if (genJob.pos >= total) {
+          log(`Generate ${genJob.label} completed (${total} rows)`, "success");
+          genJob = null;
+        } else {
+          log(
+            `Generation paused — ${total - genJob.pos} rows left, next row ${
+              genJob.idxs[genJob.pos]
+            }. Click Resume to continue.`,
+            "error"
+          );
+        }
+        save();
+        updateGenButtons();
+      }
 
-      // Generate All Pages — full-site generation for checked rows,
-      // falling back to the From/To range when nothing is checked.
+      function startGenJob(idxs, { exact, label }) {
+        if (genRunning) return;
+        if (!requireApiKey()) return;
+        if (!idxs || idxs.length === 0) {
+          log("No rows with an entity_id to generate!", "error");
+          return;
+        }
+        const sec = +document.getElementById("genDelay").value || 0;
+        log(
+          `Starting ${exact ? "ALL-PAGES " : ""}generate for ${
+            idxs.length
+          } rows — ${label} (${sec}s delay)`,
+          "info"
+        );
+        genJob = { idxs, pos: 0, exact, label };
+        runGenJob();
+      }
+
+      // Generate — From/To range, page checkboxes + prod toggle.
+      document.getElementById("genRangeBtn").addEventListener("click", () => {
+        const r = getRangeIdxs();
+        if (r) startGenJob(r.idxs, { exact: false, label: r.label });
+      });
+
+      // Generate Checked — checked rows, page checkboxes + prod toggle.
+      document.getElementById("genCheckedBtn").addEventListener("click", () => {
+        const idxs = getCheckedIdxs();
+        if (idxs.length === 0) {
+          log("No rows checked for generation!", "error");
+          return;
+        }
+        startGenJob(idxs, { exact: false, label: "checked rows" });
+      });
+
+      // Generate All Pages — exact raft curl for the From/To range.
       document
         .getElementById("genAllPagesBtn")
-        .addEventListener("click", async () => {
-          const apiKey = document.getElementById("apiKey").value.trim();
-          if (!apiKey) {
-            log("No API key set! Paste your x-api-key first.", "error");
-            return;
-          }
-
-          let idxs = [];
-          sites.forEach((s, i) => {
-            if (s.gen_checked && s.entity_id) idxs.push(i);
-          });
-          let source = "checked rows";
-          if (idxs.length === 0) {
-            const from = +document.getElementById("genFrom").value;
-            const to = Math.min(
-              +document.getElementById("genTo").value,
-              sites.length - 1
-            );
-            if (from > to || from >= sites.length) {
-              log("No rows checked and From/To range is invalid!", "error");
-              return;
-            }
-            for (let i = from; i <= to; i++) {
-              if (sites[i].entity_id) idxs.push(i);
-            }
-            source = `rows ${from}-${to}`;
-          }
-          if (idxs.length === 0) {
-            log("No rows with an entity_id to generate!", "error");
-            return;
-          }
-
-          genRunning = true;
-          genShouldStop = false;
-          showGenRunning();
-
-          const genDelaySec = +document.getElementById("genDelay").value || 50;
-          log(
-            `Starting ALL-PAGES generate for ${idxs.length} ${source} (${genDelaySec}s delay)`,
-            "info"
-          );
-
-          for (let j = 0; j < idxs.length; j++) {
-            if (genShouldStop) {
-              log("Generation paused by user", "error");
-              break;
-            }
-            const idx = idxs[j];
-            log(
-              `[${idx}] Generating all pages (${j + 1}/${idxs.length})...`,
-              "info"
-            );
-            await generateRow(idx, { exact: true });
-
-            if (j < idxs.length - 1 && !genShouldStop) {
-              log(`Waiting ${genDelaySec}s before next generate...`, "info");
-              await new Promise((r) => setTimeout(r, genDelaySec * 1000));
-            }
-          }
-
-          genRunning = false;
-          showGenStopped();
-          log("All-pages generate completed", "success");
+        .addEventListener("click", () => {
+          const r = getRangeIdxs();
+          if (r) startGenJob(r.idxs, { exact: true, label: r.label });
         });
 
-      // Pause Generate
       document.getElementById("pauseGenBtn").addEventListener("click", () => {
         genShouldStop = true;
+        log("Pausing after the current row finishes...", "info");
       });
+
+      document.getElementById("resumeGenBtn").addEventListener("click", () => {
+        if (!requireApiKey()) return;
+        log(`Resuming ${genJob.label} from row ${genJob.idxs[genJob.pos]}`, "info");
+        runGenJob();
+      });
+
+      // Persist From/To/Delay as you type.
+      ["genFrom", "genTo", "genDelay"].forEach((id) =>
+        document.getElementById(id).addEventListener("input", () => save())
+      );
+
+      // Restore a paused job from a previous session.
+      try {
+        const savedJob = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}")
+          .genJob;
+        if (savedJob && savedJob.pos < savedJob.idxs.length) genJob = savedJob;
+      } catch (e) {}
+      updateGenButtons();
 
       // Save token on change
       document
@@ -2456,6 +2484,7 @@ WHERE ww.url NOT ILIKE '%zoca.ai%'
           }"><button class="action-btn" data-sp-copy="${
               s.website_id || ""
             }" title="Copy website_id">📋</button> ${s.website_id || ""}</td>
+          ${spUrlCell(spUrl(s))}
           <td title="${s.subdomain || ""}">${s.subdomain || ""}</td>
           <td>${s.rank ?? ""}</td>
           <td class="step-${s.steps?.categories || ""}">${catTxt}</td>
@@ -2463,6 +2492,27 @@ WHERE ww.url NOT ILIKE '%zoca.ai%'
         </tr>`;
           })
           .join("");
+      }
+
+      // Website URL: from the imported CSV (url/website_url/domain column),
+      // else looked up from the Website Tester tab's rows by website_id,
+      // then entity_id.
+      function spUrl(s) {
+        if (s.url) return s.url;
+        const m =
+          (s.website_id && sites.find((t) => t.website_id === s.website_id)) ||
+          (s.entity_id && sites.find((t) => t.entity_id === s.entity_id));
+        return (m && m.url) || "";
+      }
+
+      function spUrlCell(url) {
+        if (!url) return `<td>-</td>`;
+        const href = /^https?:\/\//i.test(url) ? url : `https://${url}`;
+        const label = url.replace(/^https?:\/\//i, "").replace(/\/$/, "");
+        const attr = (v) => spEsc(v).replace(/"/g, "&quot;");
+        return `<td class="url-cell" title="${attr(url)}"><a href="${attr(
+          href
+        )}" target="_blank" rel="noopener">${spEsc(label)}</a></td>`;
       }
 
       function spUpdateStats() {
@@ -2485,7 +2535,7 @@ WHERE ww.url NOT ILIKE '%zoca.ai%'
           if (!row) return;
           const hay = `${s.entity_id || ""} ${s.website_id || ""} ${
             s.subdomain || ""
-          }`.toLowerCase();
+          } ${spUrl(s)}`.toLowerCase();
           row.style.display = !q || hay.includes(q) ? "" : "none";
         });
       }
@@ -2533,7 +2583,7 @@ WHERE ww.url NOT ILIKE '%zoca.ai%'
         return result;
       }
 
-      const spSleep = (ms) => new Promise((r) => setTimeout(r, ms));
+      const spSleep = (ms) => bgTimer(ms);
 
       // Hold here while paused — this is the "pause where the API is hitting" point.
       async function spWaitIfPaused(idx, where) {
@@ -2724,6 +2774,14 @@ WHERE ww.url NOT ILIKE '%zoca.ai%'
               else if (h === "subdomain" || h === "sub_domain")
                 obj.subdomain = val;
               else if (
+                h === "url" ||
+                h === "website_url" ||
+                h === "websiteurl" ||
+                h === "website" ||
+                h === "domain"
+              )
+                obj.url = val;
+              else if (
                 h === "completed_rank_extractions" ||
                 h === "rank" ||
                 h === "completed_rank"
@@ -2837,13 +2895,14 @@ WHERE ww.url NOT ILIKE '%zoca.ai%'
 
       // Export
       document.getElementById("spExportBtn").addEventListener("click", () => {
-        const headers = ["entity_id", "website_id", "subdomain", "rank", "status", "categories", "generate"];
+        const headers = ["entity_id", "website_id", "url", "subdomain", "rank", "status", "categories", "generate"];
         const csv = [headers.join(",")];
         spSites.forEach((s) => {
           csv.push(
             [
               s.entity_id || "",
               s.website_id || "",
+              spUrl(s),
               s.subdomain || "",
               s.rank ?? "",
               s.status || "",
@@ -2917,25 +2976,26 @@ WHERE ww.url NOT ILIKE '%zoca.ai%'
       }
 
       // Countdown display between batches
-      function spBatchStartCountdown(totalSec, batchNum, totalBatches) {
-        let remaining = totalSec;
+      // `getDeadline()` returns the wall-clock ms when the next batch starts.
+      function spBatchStartCountdown(getDeadline, batchNum, totalBatches) {
         const update = () => {
+          const remaining = Math.max(0, Math.ceil((getDeadline() - Date.now()) / 1000));
           const m = Math.floor(remaining / 60);
           const s = remaining % 60;
           spBatchStatusText(`Batch ${batchNum}/${totalBatches} done. Next batch in ${m}m ${s}s...`);
         };
         update();
         spBatchCountdownTimer = setInterval(() => {
-          remaining--;
-          if (remaining <= 0) {
-            clearInterval(spBatchCountdownTimer);
-            spBatchCountdownTimer = null;
-            spBatchStatusText("");
-          } else {
-            update();
-          }
+          if (!spBatchPaused) update();
         }, 1000);
+        spBatchCountdownUpdate = update;
       }
+      let spBatchCountdownUpdate = null;
+      // Refresh the countdown immediately when you come back to the tab.
+      document.addEventListener("visibilitychange", () => {
+        if (!document.hidden && spBatchCountdownTimer && !spBatchPaused && spBatchCountdownUpdate)
+          spBatchCountdownUpdate();
+      });
 
       document.getElementById("spBatchRunBtn").addEventListener("click", async () => {
         const apiKey = document.getElementById("spApiKey").value.trim();
@@ -3015,18 +3075,24 @@ WHERE ww.url NOT ILIKE '%zoca.ai%'
           if (b < batches.length - 1 && !spBatchShouldStop) {
             const batchDelaySec = batchDelayMin * 60;
             spLog(`Batch ${b + 1}/${batches.length} complete. Waiting ${batchDelayMin} minutes before next batch...`, "info");
-            spBatchStartCountdown(batchDelaySec, b + 1, batches.length);
+            // Wall-clock deadline: background throttling can only delay a
+            // check, never stretch the wait. Time spent paused is added back.
+            let deadline = Date.now() + batchDelaySec * 1000;
+            spLog(`Next batch at ${new Date(deadline).toLocaleTimeString()}`, "info");
+            spBatchStartCountdown(() => deadline, b + 1, batches.length);
 
-            // Wait in small increments so we can respond to stop/pause
-            for (let elapsed = 0; elapsed < batchDelaySec && !spBatchShouldStop; elapsed++) {
-              while (spBatchPaused && !spBatchShouldStop) {
-                if (spBatchCountdownTimer) { clearInterval(spBatchCountdownTimer); spBatchCountdownTimer = null; }
+            while (Date.now() < deadline && !spBatchShouldStop) {
+              if (spBatchPaused) {
+                const pausedAt = Date.now();
                 spBatchStatusText("⏸ Paused (between batches)");
-                await spSleep(300);
+                while (spBatchPaused && !spBatchShouldStop) await spSleep(300);
+                deadline += Date.now() - pausedAt;
+                if (spBatchCountdownUpdate) spBatchCountdownUpdate();
               }
-              await spSleep(1000);
+              await spSleep(Math.min(1000, Math.max(0, deadline - Date.now())));
             }
             if (spBatchCountdownTimer) { clearInterval(spBatchCountdownTimer); spBatchCountdownTimer = null; }
+            spBatchCountdownUpdate = null;
           }
         }
 
